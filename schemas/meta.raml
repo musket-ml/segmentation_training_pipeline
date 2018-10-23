@@ -1,0 +1,26 @@
+#%RAML 1.0 Library
+annotationTypes:
+  abstract: boolean
+  positional: boolean
+  entry: boolean
+  module: string
+  alias: string
+  custom: boolean
+types:
+  int_range:
+    type: integer[]
+    minItems: 2
+    maxItems: 2
+  number_range:
+      type: number[]
+      minItems: 2
+      maxItems: 2
+
+  image_shape:
+    type: integer[]
+    minItems: 3
+    maxItems: 3
+  probability:
+    type: number
+    minimum: 0
+    maximum: 1.0

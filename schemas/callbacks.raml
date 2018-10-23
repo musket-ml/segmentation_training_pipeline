@@ -1,0 +1,33 @@
+#%RAML 1.0 Library
+uses:
+  meta: meta.raml
+(meta.module):  keras.callbacks
+types:
+  Callback:
+    type: object
+  CallbackWithPatience:
+    type: Callback
+    properties:
+      patience:
+        type: integer
+      verbose:
+        type: integer
+        enum: [0,1]
+      monitor:
+        type: string
+      mode:
+        type: string
+        enum: [min,max,auto]
+        default: auto
+  EarlyStopping:
+    type: CallbackWithPatience
+  ReduceLROnPlateau:
+    type: CallbackWithPatience
+    properties:
+      factor:
+        type: number
+        minimum: 0
+        maximum: 1
+      cooldown:
+        type: integer
+        minimum: 0

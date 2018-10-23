@@ -1,0 +1,125 @@
+#######
+AddToHueAndSaturation:
+  arguments: []
+  name: AddToHueAndSaturation
+
+Affine:
+  arguments: []
+  name: Affine
+AffineCv2:
+  arguments: []
+  name: AffineCv2
+AlphaElementwise:
+  arguments: []
+  name: AlphaElementwise
+AssertLambda:
+  arguments: []
+  name: AssertLambda
+AssertShape:
+  arguments: []
+  name: AssertShape
+BilateralBlur:
+  arguments: []
+  name: BilateralBlur
+ChangeColorspace:
+  arguments: []
+  name: ChangeColorspace
+CoarseDropout:
+  arguments: []
+  name: CoarseDropout
+CoarsePepper:
+  arguments: []
+  name: CoarsePepper
+CoarseSalt:
+  arguments: []
+  name: CoarseSalt
+CoarseSaltAndPepper:
+  arguments: []
+  name: CoarseSaltAndPepper
+ContrastNormalization:
+  arguments: []
+  name: ContrastNormalization
+Convolve:
+  arguments: []
+  name: Convolve
+Crop:
+  arguments: []
+  name: Crop
+CropAndPad:
+  arguments: []
+  name: CropAndPad
+CropToFixedSize:
+  arguments: []
+  name: CropToFixedSize
+FrequencyNoiseAlpha:
+  arguments: []
+  name: FrequencyNoiseAlpha
+GammaContrast:
+  arguments: []
+  name: GammaContrast
+Image:
+  arguments: []
+  name: Image
+InColorspace:
+  arguments: []
+  name: InColorspace
+Lambda:
+  arguments: []
+  name: Lambda
+LinearContrast:
+  arguments: []
+  name: LinearContrast
+LogContrast:
+  arguments: []
+  name: LogContrast
+Noop:
+  arguments: []
+  name: Noop
+
+Pad:
+  arguments: []
+  name: Pad
+PadToFixedSize:
+  arguments: []
+  name: PadToFixedSize
+Pepper:
+  arguments: []
+  name: Pepper
+PerspectiveTransform:
+  arguments: []
+  name: PerspectiveTransform
+
+ReplaceElementwise:
+  arguments: []
+  name: ReplaceElementwise
+Salt:
+  arguments: []
+  name: Salt
+SaltAndPepper:
+  arguments: []
+  name: SaltAndPepper
+Scale:
+  arguments: []
+  name: Scale
+
+SigmoidContrast:
+  arguments: []
+  name: SigmoidContrast
+SimplexNoiseAlpha:
+  arguments: []
+  name: SimplexNoiseAlpha
+SomeOf:
+  arguments: []
+  name: SomeOf
+Sometimes:
+  arguments: []
+  name: Sometimes
+Superpixels:
+  arguments: []
+  name: Superpixels
+WithChannels:
+  arguments: []
+  name: WithChannels
+WithColorspace:
+  arguments: []
+  name: WithColorspace

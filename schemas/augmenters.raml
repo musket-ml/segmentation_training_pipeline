@@ -1,0 +1,95 @@
+#%RAML 1.0 Library
+(meta.module): imgaug.augmenters
+uses:
+  meta: meta.raml
+types:
+  Augmenter:
+    (meta.abstract): true
+    type: object
+  HasPerChannel:
+    type: Augmenter
+    (meta.abstract): true
+    properties:
+      per_channel?: meta.probability
+
+  HasAlpha:
+    type: Augmenter
+    (meta.abstract): true
+    properties:
+      alpha: meta.number_range
+  WithChance:
+    type: Augmenter
+    (meta.abstract): true
+    properties:
+      probability:
+        (meta.positional): true
+        type: meta.probability
+  RangedPerChannel:
+    (meta.abstract): true
+    type: HasPerChannel
+    properties:
+      range:
+        (meta.positional): true
+        type: meta.int_range
+  ControlFlow:
+    type: Augmenter
+    (meta.abstract): true
+    properties:
+      value:
+        (meta.positional): true
+        type: Augmenter[]
+
+### Concrete Augmenters starts here
+  Add: RangedPerChannel
+  AddElementwise: RangedPerChannel
+  Multiply: RangedPerChannel
+  MultiplyElementwise: RangedPerChannel
+  Fliplr: WithChance
+  Flipud: WithChance
+  Invert: WithChance
+  Sequential: ControlFlow
+  OneOf: ControlFlow
+  AdditiveGaussianNoise:
+    type: Augmenter
+    properties:
+      scale: meta.number_range
+      per_channel: meta.probability
+  Grayscale:
+    type: Augmenter
+    properties:
+      alpha: meta.number_range
+  GaussianBlur:
+    type: Augmenter
+    properties:
+      sigma: meta.number_range
+  AverageBlur:
+    type: Augmenter
+    properties:
+      k: meta.int_range
+  MedianBlur: AverageBlur
+  Sharpen:
+    type: HasAlpha
+    properties:
+      lightness: meta.number_range
+  Emboss:
+    type: HasAlpha
+    properties:
+      strength: meta.number_range
+  EdgeDetect: HasAlpha
+  DirectedEdgeDetect:
+    type: HasAlpha
+    properties:
+      direction: meta.number_range
+  Dropout:
+    type: HasPerChannel
+    properties:
+      p: meta.number_range
+  PiecewiseAffine:
+    type: Augmenter
+    properties:
+      scale: meta.number_range
+  ElasticTransformation:
+    type: HasAlpha
+    properties:
+      scale: meta.number_range
+      sigma: number
