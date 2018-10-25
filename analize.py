@@ -111,11 +111,12 @@ def build_metrics(pattern):
                 val=cfg[k]
             r[k]=val
         r["path"]=p;
-        res.append(r)
+
 
         r["loss_function"]=r["loss"]
         if p in metrics:
             exp_metrics = metrics[p]
+            res.append(r)
             for k in sorted(list(all_metrics_keys)):
                 if len(only_use)>0:
                     if not k in only_use:
