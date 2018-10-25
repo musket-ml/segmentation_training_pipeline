@@ -19,11 +19,18 @@ types:
           - jaccard_loss
           - focal_loss #This one is very unstable
           - lovasz_loss
+  AugmenterConfig:
+      type: object
+      properties?:
+        name: string
   PipelineConfig:
     (meta.entry): true
     type: HasLoss
     discriminator: architecture
     properties:
+      dataset_augmenter?:
+        type: AugmenterConfig
+        (meta.custom): true
       backbone?:
         (meta.alias): backbone_name
         type: string

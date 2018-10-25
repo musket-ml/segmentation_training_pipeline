@@ -35,6 +35,9 @@ def create_with(names: [str], fr: dict):
 custom_models={
     "DeepLabV3":dlm.Deeplabv3
 }
+dataset_augmenters={
+
+}
 
 class PipelineConfig:
 
@@ -82,7 +85,7 @@ class PipelineConfig:
         self.path = None
         self.primary_metric = "val_binary_accuracy"
         self.primary_metric_mode = "auto"
-
+        self.dataset_augmenter=None
         for v in atrs:
             val = atrs[v];
             if v == 'augmentation':
@@ -164,7 +167,14 @@ class PipelineConfig:
     def kfold(self, ds, indeces):
         transforms = [] + self.transforms
         transforms.append(imgaug.augmenters.Scale(size=(self.shape[0], self.shape[1])))
-        return datasets.KFoldedDataSet(ds, indeces, self.augmentation, transforms, batchSize=self.batch)
+        kf=datasets.KFoldedDataSet(ds, indeces, self.augmentation, transforms, batchSize=self.batch)
+        if self.dataset_augmenter is not None:
+            args = dict(self.dataset_augmenter)
+            del args["name"]
+            ag=dataset_augmenters[self.dataset_augmenter["name"]](**args)
+            kf=ag(kf)
+            pass
+        return kf
 
 
 def parse(path) -> PipelineConfig:
