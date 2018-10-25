@@ -156,7 +156,11 @@ def parse(path) -> PipelineConfig:
     cfg.path = path;
     return cfg
 
-
+def ensure(p):
+    try:
+        os.makedirs(p);
+    except:
+        pass
 class ExecutionConfig:
     def __init__(self, fold=0, stage=0, subsample=1.0, dr: str = ""):
         self.subsample = subsample
@@ -166,20 +170,27 @@ class ExecutionConfig:
         pass
 
     def weightsPath(self):
-        return os.path.join(self.dirName, "best-" + str(self.fold) + "." + str(self.stage) + ".weights")
+        ensure(os.path.join(self.dirName, "weights"))
+        return os.path.join(self.dirName, "weights","best-" + str(self.fold) + "." + str(self.stage) + ".weights")
 
     def metricsPath(self):
-        return os.path.join(self.dirName, "metrics-" + str(self.fold) + "." + str(self.stage) + ".csv")
+        ensure(os.path.join(self.dirName, "metrics"))
+        return os.path.join(self.dirName, "metrics","metrics-" + str(self.fold) + "." + str(self.stage) + ".csv")
 
 
 class Stage:
     def __init__(self, dict, cfg: PipelineConfig):
         self.dict = dict
         self.cfg = cfg;
+        if 'initial_weights' in dict:
+            self.initial_weights=dict['initial_weights']
+        else: self.initial_weights=None
         if 'negatives' in dict:
             self.negatives = dict['negatives']
+        if 'validation_negatives' in dict:
+            self.validation_negatives = dict['validation_negatives']
         else:
-            self.negatives = "real"
+            self.validation_negatives=None
         self.epochs = dict["epochs"]
         if 'loss' in dict:
             self.loss = dict['loss']
@@ -196,7 +207,8 @@ class Stage:
         if self.loss or self.lr:
             self.cfg.compile(model, self.cfg.createOptimizer(self.lr), self.loss)
         cb = [] + self.cfg.callbacks
-
+        if self.initial_weights is not None:
+            model.load_weights(self.initial_weights)
         if 'callbacks' in self.dict:
             cb = configloader.parse("callbacks", self.dict['callbacks'])
         cb.append(keras.callbacks.CSVLogger(ec.metricsPath()))
@@ -205,7 +217,7 @@ class Stage:
             keras.callbacks.ModelCheckpoint(ec.weightsPath(), save_best_only=True, monitor=self.cfg.primary_metric,
                                             mode=md, verbose=1))
         cb.append(DrawResults(self.cfg,kf,ec.fold,ec.stage,negatives=self.negatives))
-        kf.trainOnFold(ec.fold, model, cb, self.epochs, self.negatives, subsample=ec.subsample)
+        kf.trainOnFold(ec.fold, model, cb, self.epochs, self.negatives, subsample=ec.subsample,validation_negatives=self.validation_negatives)
         pass
 
 
@@ -227,10 +239,7 @@ class DrawResults(keras.callbacks.Callback):
         num=0
         for i in iter():
             dr=os.path.join(os.path.dirname(self.cfg.path),"examples", str(self.stage), str(self.fold))
-            try:
-                os.makedirs(dr);
-            except:
-                pass
+            ensure(dr)
             datasets.draw_test_batch(i, os.path.join(dr,"t_epoch_"+str(epoch)+"." + str(num) + '.jpg'))
             num = num + 1
         pass

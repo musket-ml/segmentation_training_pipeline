@@ -225,9 +225,12 @@ class KFoldedDataSet:
             return r;
         return indexes
 
-    def trainOnFold(self,fold:int,model:keras.Model,callbacks=[],numEpochs:int=100,negatives="all",subsample=1.0):
+    def trainOnFold(self,fold:int,model:keras.Model,callbacks=[],numEpochs:int=100,negatives="all",
+                    subsample=1.0,validation_negatives=None):
         train_indexes = self.sampledIndexes(fold, True, negatives)
-        test_indexes = self.sampledIndexes(fold, False, negatives)
+        if validation_negatives==None:
+            validation_negatives=negatives
+        test_indexes = self.sampledIndexes(fold, False, validation_negatives)
 
         tl,tg,train_g=self.generator_from_indexes(train_indexes)
         vl,vg,test_g = self.generator_from_indexes(test_indexes,isTrain=False)

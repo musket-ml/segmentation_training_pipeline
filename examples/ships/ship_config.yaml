@@ -8,10 +8,8 @@ shape: [384, 384, 3]
 augmentation:
  Fliplr: 0.5
  Flipud: 0.5
-
 optimizer: Adam
 batch: 8
-
 metrics:
   - binary_accuracy
 primary_metric: val_binary_accuracy
