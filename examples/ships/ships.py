@@ -38,12 +38,12 @@ ds = SegmentationRLE ("F:/all/train_ship_segmentations.csv","F:/all/train")
 def main():
     #segmentation.execute(ds, "ship_config.yaml")
     cfg=segmentation.parse("ship_config.yaml")
-    cfg.fit(ds,3,[0])
-    print("A")
-    num=0;
+    #cfg.fit(ds,3,[0])
+    #print("A")
+    #num=0;
 
 
-
+    cfg.predict_to_directory("F:/all/test_v2","F:/all/test_v2_seg",batchSize=16)
 
     for i in cfg.predict_on_directory("F:/all/test_v2",0,0,100):
         drawBatch(i,"batch"+str(num)+'.jpg')

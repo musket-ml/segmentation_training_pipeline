@@ -1,6 +1,7 @@
 import imgaug
 import segmentation_models
 import numpy as np
+import tqdm
 from segmentation_models.utils import set_trainable
 import keras.optimizers as opt
 import keras
@@ -9,6 +10,7 @@ import os
 import yaml
 import impl.losses
 import impl.focal_loss
+import imageio
 keras.utils.get_custom_objects()["dice"]=impl.losses.dice_coef
 keras.utils.get_custom_objects()["iou"]=impl.losses.iou_coef
 keras.utils.get_custom_objects()["iot"]=impl.losses.iot_coef
@@ -109,6 +111,20 @@ class PipelineConfig:
                 res = mdl.predict(np.array(z.images_aug))
                 z.segmentation_maps_aug = [imgaug.SegmentationMapOnImage(x, x.shape) for x in res];
                 yield z
+
+    def predict_to_directory(self, spath, tpath,fold=0, stage=0, limit=-1, batchSize=32):
+        ensure(tpath)
+        with tqdm.tqdm(total=len(os.listdir(spath)),unit="files",desc="segmentation of images from "+spath+" to "+tpath) as pbar:
+            for v in self.predict_on_directory(spath,fold=fold, stage=stage, limit=limit, batchSize=batchSize):
+                b:imgaug.Batch=v;
+                for i in range(len(b.data)):
+                    id=b.data[i];
+                    orig=b.images[i];
+                    map=b.segmentation_maps_aug[i]
+                    scaledMap=imgaug.augmenters.Scale(size=(orig.shape[0],orig.shape[1])).augment_segmentation_maps([map])
+                    imageio.imwrite(os.path.join(tpath, id[0:id.index('.')] + ".png"), (scaledMap[0].arr*255).astype(np.uint8))
+                pbar.update(batchSize)
+
 
     def createNet(self):
         if self.architecture in custom_models:
