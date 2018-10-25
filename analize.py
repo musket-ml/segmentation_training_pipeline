@@ -34,6 +34,7 @@ def flatten(c:dict):
     return res
 
 ignored_metrics=["lr","fold"]
+only_use=[]
 metrics_to_min=["loss","val_loss"]
 def buildMetrics(pattern):
 
@@ -86,16 +87,20 @@ def buildMetrics(pattern):
         columns.append("loss_function")
     for k in meaningfullkeys:
         columns.append(k)
-    for k in sorted(list(allMetricKeys)):
-        if not k in ignored_metrics:
-            if ("val_" not in k):
-                columns.append(k)
-            pass
-    for k in sorted(list(allMetricKeys)):
-        if not k in ignored_metrics:
-            if ("val_"  in k):
-                columns.append(k)
-            pass
+
+    if len(only_use)==0:
+        for k in sorted(list(allMetricKeys)):
+            if not k in ignored_metrics:
+                if ("val_" not in k):
+                    columns.append(k)
+                pass
+        for k in sorted(list(allMetricKeys)):
+            if not k in ignored_metrics:
+                if ("val_"  in k):
+                    columns.append(k)
+                pass
+    else:
+        columns=columns+only_use
     for p,cfg in flattened:
         r={}
         for k in meaningfullkeys:
@@ -110,6 +115,9 @@ def buildMetrics(pattern):
         if p in metrics:
             expMetrics = metrics[p]
             for k in sorted(list(allMetricKeys)):
+                if len(only_use)>0:
+                    if not k in only_use:
+                        continue
                 if not k in ignored_metrics:
                     count=0;
                     mv=0;
@@ -130,11 +138,17 @@ def main():
                         help='folder to search for experiments')
     parser.add_argument('--output', type=str, default="report.csv",
                         help='file to store aggregated metrics')
+    parser.add_argument('--onlyMetric', type=str, default="",
+                        help='file to store aggregated metrics')
     parser.add_argument('--sortBy', type=str, default="val_loss",
                         help='metric to sort results')
 
     args = parser.parse_args()
+    if len(args.onlyMetric)>0:
+        only_use.append(args.onlyMetric)
+        args.sortBy=args.onlyMetric
     pattern = args.inputFolder+"/**/*config.yaml";
+
     rrr, columnms = buildMetrics(pattern)
     res = pd.DataFrame(rrr)
     res = res[columnms]
