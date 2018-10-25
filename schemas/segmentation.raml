@@ -5,9 +5,23 @@ uses:
   cb: callbacks.raml
 (meta.module):  segmentation
 types:
+  HasLoss:
+    type: object
+    (meta.abstract): true
+    properties:
+      loss?:
+        (meta.custom): true
+        type: string
+        (meta.suggestions):
+          - binary_crossentropy
+          - categorical_crossentropy
+          - dice_loss
+          - jaccard_loss
+          - focal_loss #This one is very unstable
+          - lovasz_loss
   PipelineConfig:
     (meta.entry): true
-    type: object
+    type: HasLoss
     discriminator: architecture
     properties:
       backbone?:
@@ -22,7 +36,7 @@ types:
       activation:
         enum: [ sigmoid, softmax ]
       architecture:
-        enum: [ Unet, FPN, Linknet, PSPNet]
+        enum: [ Unet, FPN, Linknet, PSPNet, DeepLabV3]
         (meta.custom): true
       shape:
         (meta.alias): input_shape
@@ -48,9 +62,8 @@ types:
         type: number
         (meta.custom): true
       #####################################
-      loss?:
+      loss?: #Remove it when we have better python loader
         (meta.custom): true
-        type: string
       batch?:
         type: integer
         (meta.custom): true
@@ -59,6 +72,11 @@ types:
       metrics:
         type: string[]
         (meta.custom): true
+        (meta.suggestions):
+          - binary_accuracy
+          - dice
+          - iou
+          - iot #at 0.5 treshold
       primary_metric:
         type: string
         (meta.custom): true
@@ -78,15 +96,35 @@ types:
     type: string
     enum: [ none  , real ]
   StageConfig:
-    type: object
+    type: HasLoss
     properties:
       negatives?:
         type: St | number
-      loss?: string
       epochs?: number
       unfreeze_encoder?: boolean
       lr?: number
       callbacks?: cb.Callback[]
+
+  DeepLabV3:
+      type: PipelineConfig
+      discriminatorValue: DeepLabV3
+      properties:
+        backbone?:
+          (meta.alias): backbone_name
+          type: string
+          enum: [mobilenetv2, xception]
+        encoder_weights?:
+          type: string
+          enum: [pascal_voc]
+        alpha?:
+          type: number
+          default: 1.0
+        OS?:
+          type: integer
+          default: 16
+        freeze_encoder?:
+          type: boolean
+          enum: [ false ]
   Unet:
       type: PipelineConfig
       discriminatorValue: Unet
@@ -178,3 +216,4 @@ types:
       final_interpolation?:
         type: string
         default: bilinear
+        enum: [bilinear,nearest]

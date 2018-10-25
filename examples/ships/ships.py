@@ -1,10 +1,11 @@
 
 import pandas as pd
-from impl.datasets import PredictionItem
+from impl.datasets import PredictionItem,drawBatch,draw_test_batch
 import os
 from impl import rle
 import imageio
 import segmentation
+import numpy as np
 
 class SegmentationRLE:
 
@@ -35,7 +36,19 @@ class SegmentationRLE:
 ds = SegmentationRLE ("F:/all/train_ship_segmentations.csv","F:/all/train")
 
 def main():
-    segmentation.execute(ds, "ship_config.yaml")
+    #segmentation.execute(ds, "ship_config.yaml")
+    cfg=segmentation.parse("ship_config.yaml")
+    cfg.fit(ds,3,[0])
+    print("A")
+    num=0;
+
+
+
+
+    for i in cfg.predict_on_directory("F:/all/test_v2",0,0,100):
+        drawBatch(i,"batch"+str(num)+'.jpg')
+        num=num+1
+        print()
 
 if __name__ == '__main__':
     main()

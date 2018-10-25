@@ -1,16 +1,16 @@
 backbone: resnet34
-architecture: Linknet
+architecture: FPN
 classes: 1
 activation: sigmoid
 encoder_weights: imagenet
-shape: [768, 768, 3]
+shape: [384, 384, 3]
 
 augmentation:
  Fliplr: 0.5
  Flipud: 0.5
 
 optimizer: Adam
-batch: 16
+batch: 8
 
 metrics:
   - binary_accuracy
@@ -19,7 +19,7 @@ primary_metric_mode: auto
 freeze_encoder: true
 callbacks:
   EarlyStopping:
-    patience: 5
+    patience: 15
     monitor: val_binary_accuracy
     verbose: 1
   ReduceLROnPlateau:
@@ -33,10 +33,10 @@ loss: binary_crossentropy
 stages:
   - #loss: mse
     #lr: 0.4
-    epochs: 10
+    epochs: 3
     negatives: none
   - unfreeze_encoder: true
     #lr: 0.1
     loss: binary_crossentropy
-    epochs: 10
-    negatives: real
+    epochs: 1000
+    negatives: none
