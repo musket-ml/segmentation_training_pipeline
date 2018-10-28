@@ -1,11 +1,11 @@
 
 import pandas as pd
-from impl.datasets import PredictionItem,drawBatch,draw_test_batch
+from segmentation_pipeline.impl.datasets import PredictionItem
 import os
-from impl import rle
+from segmentation_pipeline.impl import rle
 import imageio
-import segmentation
-import numpy as np
+from segmentation_pipeline import segmentation
+
 
 class SegmentationRLE:
 
@@ -33,22 +33,28 @@ class SegmentationRLE:
     def __len__(self):
         return len(self.masks)
 
-ds = SegmentationRLE ("F:/all/train_ship_segmentations.csv","F:/all/train")
+ds = SegmentationRLE ("F:/all/train_ship_segmentations.csv","D:/train_ships/train")
 
 def main():
     #segmentation.execute(ds, "ship_config.yaml")
-    cfg=segmentation.parse("ship_config.yaml")
-    #cfg.fit(ds,3,[0])
+    # cfg=segmentation.parse("fpn/ship_config.yaml")
+    # cfg.fit(ds)
+    # cfg = segmentation.parse("linknet/ship_config.yaml")
+    # cfg.fit(ds)
+    # cfg = segmentation.parse("psp/ship_config.yaml")
+    # cfg.fit(ds)
+    cfg = segmentation.parse("fpn-resnext/ship_config.yaml")
+    cfg.fit(ds)
     #print("A")
     #num=0;
 
 
-    cfg.predict_to_directory("F:/all/test_v2","F:/all/test_v2_seg",batchSize=16)
+    #cfg.predict_to_directory("F:/all/test_v2","F:/all/test_v2_seg",batchSize=16)
 
-    for i in cfg.predict_on_directory("F:/all/test_v2",0,0,100):
-        drawBatch(i,"batch"+str(num)+'.jpg')
-        num=num+1
-        print()
+    # for i in cfg.predict_on_directory("F:/all/test_v2",0,0,100):
+    #     drawBatch(i,"batch"+str(num)+'.jpg')
+    #     num=num+1
+    #     print()
 
 if __name__ == '__main__':
     main()

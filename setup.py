@@ -6,5 +6,5 @@ setup(name='segmentation_pipeline',
       author='Petrochenko Pavel',
       author_email='petrochenko.pavel.a@gmail.com',
       license='MIT',
-      packages=['segmentation_pipeline'],
+      packages=['segmentation_pipeline','segmentation_pipeline.impl','segmentation_pipeline.impl.deeplab'],
       zip_safe=False)
