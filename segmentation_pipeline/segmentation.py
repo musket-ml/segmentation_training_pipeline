@@ -5,22 +5,24 @@ import tqdm
 from segmentation_models.utils import set_trainable
 import keras.optimizers as opt
 import keras
-from impl import datasets, configloader
+from segmentation_pipeline.impl import datasets, configloader
 import os
 import yaml
-import impl.losses
-import impl.focal_loss
+import segmentation_pipeline.impl.losses
+import segmentation_pipeline.impl.focal_loss
 import imageio
-keras.utils.get_custom_objects()["dice"]=impl.losses.dice_coef
-keras.utils.get_custom_objects()["iou"]=impl.losses.iou_coef
-keras.utils.get_custom_objects()["iot"]=impl.losses.iot_coef
+keras.utils.get_custom_objects()["dice"]= segmentation_pipeline.impl.losses.dice_coef
+keras.utils.get_custom_objects()["iou"]= segmentation_pipeline.impl.losses.iou_coef
+keras.utils.get_custom_objects()["iot"]= segmentation_pipeline.impl.losses.iot_coef
 
-keras.utils.get_custom_objects()["lovasz_loss"]=impl.losses.lovasz_loss
-keras.utils.get_custom_objects()["iou_loss"]=impl.losses.iou_coef_loss
-keras.utils.get_custom_objects()["dice_loss"]=impl.losses.dice_coef_loss
-keras.utils.get_custom_objects()["jaccard_loss"]=impl.losses.jaccard_distance_loss
-keras.utils.get_custom_objects()["focal_loss"]=impl.focal_loss.focal_loss(gamma=1)
-from impl.deeplab import model as dlm
+keras.utils.get_custom_objects()["lovasz_loss"]= segmentation_pipeline.impl.losses.lovasz_loss
+keras.utils.get_custom_objects()["iou_loss"]= segmentation_pipeline.impl.losses.iou_coef_loss
+keras.utils.get_custom_objects()["dice_loss"]= segmentation_pipeline.impl.losses.dice_coef_loss
+keras.utils.get_custom_objects()["jaccard_loss"]= segmentation_pipeline.impl.losses.jaccard_distance_loss
+keras.utils.get_custom_objects()["focal_loss"]= segmentation_pipeline.impl.focal_loss.focal_loss(gamma=1)
+from segmentation_pipeline.impl.deeplab import model as dlm
+
+
 def copy_if_exist(name: str, fr: dict, trg: dict):
     if name in fr:
         trg[name] = fr[name]
@@ -167,7 +169,7 @@ class PipelineConfig:
     def kfold(self, ds, indeces):
         transforms = [] + self.transforms
         transforms.append(imgaug.augmenters.Scale(size=(self.shape[0], self.shape[1])))
-        kf=datasets.KFoldedDataSet(ds, indeces, self.augmentation, transforms, batchSize=self.batch)
+        kf= datasets.KFoldedDataSet(ds, indeces, self.augmentation, transforms, batchSize=self.batch)
         if self.dataset_augmenter is not None:
             args = dict(self.dataset_augmenter)
             del args["name"]
@@ -266,6 +268,6 @@ class DrawResults(keras.callbacks.Callback):
         for i in iter():
             dr=os.path.join(os.path.dirname(self.cfg.path),"examples", str(self.stage), str(self.fold))
             ensure(dr)
-            datasets.draw_test_batch(i, os.path.join(dr,"t_epoch_"+str(epoch)+"." + str(num) + '.jpg'))
+            datasets.draw_test_batch(i, os.path.join(dr, "t_epoch_" + str(epoch) + "." + str(num) + '.jpg'))
             num = num + 1
         pass

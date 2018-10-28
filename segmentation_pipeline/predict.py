@@ -1,5 +1,7 @@
 import argparse
-import segmentation
+from segmentation_pipeline import segmentation
+
+
 def main():
     parser = argparse.ArgumentParser(description='Simple segmentation pipeline')
     parser.add_argument('--inputFolder',  type=str, required=True,
@@ -11,7 +13,7 @@ def main():
                         )
 
     args = parser.parse_args()
-    cfg=segmentation.parse(args.config)
+    cfg= segmentation.parse(args.config)
     cfg.predict_to_directory(args.inputFolder,args.output,batchSize=16)
 
 if __name__ == '__main__':

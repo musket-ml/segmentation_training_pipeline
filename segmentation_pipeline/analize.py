@@ -112,8 +112,8 @@ def build_metrics(pattern):
             r[k]=val
         r["path"]=p;
 
-
-        r["loss_function"]=r["loss"]
+        if "loss" in r:
+            r["loss_function"]=r["loss"]
         if p in metrics:
             exp_metrics = metrics[p]
             res.append(r)
