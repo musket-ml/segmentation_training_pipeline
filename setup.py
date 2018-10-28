@@ -1,4 +1,5 @@
 from setuptools import setup
+import setuptools
 setup(name='segmentation_pipeline',
       version='0.1',
       description='The funniest joke in the world',
@@ -6,5 +7,5 @@ setup(name='segmentation_pipeline',
       author='Petrochenko Pavel',
       author_email='petrochenko.pavel.a@gmail.com',
       license='MIT',
-      packages=['segmentation_pipeline','segmentation_pipeline.impl','segmentation_pipeline.impl.deeplab'],
+      packages=setuptools.find_packages(),
       zip_safe=False)
