@@ -6,7 +6,7 @@ from segmentation_pipeline.impl import rle
 import imageio
 from segmentation_pipeline import segmentation
 
-
+from keras.optimizers import Adam
 class SegmentationRLE:
 
     def __init__(self,path,imgPath):
@@ -43,8 +43,8 @@ def main():
     # cfg.fit(ds)
     # cfg = segmentation.parse("psp/ship_config.yaml")
     # cfg.fit(ds)
-    cfg = segmentation.parse("fpn-resnext/ship_config.yaml")
-    cfg.fit(ds)
+    cfg = segmentation.parse("fpn-resnext2/ship_config.yaml")
+    cfg.fit(ds,foldsToExecute=[2])
     #print("A")
     #num=0;
 

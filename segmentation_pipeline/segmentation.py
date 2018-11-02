@@ -43,7 +43,7 @@ dataset_augmenters={
 
 class PipelineConfig:
 
-    def fit(self, d, subsample=1.0, foldsToExecute=None):
+    def fit(self, d, subsample=1.0, foldsToExecute=None, start_from_stage=0):
         dn = os.path.dirname(self.path)
         if os.path.exists(os.path.join(dn, "summary.yaml")):
             raise ValueError("Experiment is already finished!!!!")
@@ -55,6 +55,12 @@ class PipelineConfig:
                     continue
             model = self.createAndCompile()
             for s in range(0, len(self.stages)):
+                if s<start_from_stage:
+                    st: Stage = self.stages[s]
+                    ec = ExecutionConfig(fold=i, stage=s, subsample=subsample, dr=os.path.dirname(self.path))
+                    if os.path.exists(ec.weightsPath()):
+                        model.load_weights(ec.weightsPath())
+                    continue
                 st: Stage = self.stages[s]
                 ec = ExecutionConfig(fold=i, stage=s, subsample=subsample, dr=os.path.dirname(self.path))
                 st.execute(folds, model, ec)
