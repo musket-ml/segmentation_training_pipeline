@@ -1,0 +1,2 @@
+include *.txt
+recursive-include segmentation_pipeline/schemas *.raml

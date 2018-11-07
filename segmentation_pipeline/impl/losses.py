@@ -29,7 +29,7 @@ def iot_coef(y_true, y_pred, smooth=1):
 
     intersection = K.sum(y_true * y_pred, axis=[1, 2, 3])
     union = K.sum(y_true, axis=[1, 2, 3]) + K.sum(y_pred, axis=[1, 2, 3])
-    return K.mean((intersection + smooth) / (union + smooth), axis=0)
+    return 2.0*K.mean((intersection + smooth) / (union + smooth), axis=0)
 
 def iou_coef(y_true, y_pred, smooth=1):
     """
@@ -37,7 +37,7 @@ def iou_coef(y_true, y_pred, smooth=1):
     """
     intersection = K.sum(y_true * y_pred, axis=[1, 2, 3])
     union = K.sum(y_true, axis=[1, 2, 3]) + K.sum(y_pred, axis=[1, 2, 3])
-    return K.mean((intersection + smooth) / (union + smooth), axis=0)
+    return 2.0*K.mean((intersection + smooth) / (union + smooth), axis=0)
     # intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
     # union = K.sum((y_true,-1) + K.sum(y_pred,-1)) - intersection
     # return (intersection + smooth) / ( union + smooth)
@@ -63,6 +63,21 @@ def jaccard_distance_loss(y_true, y_pred, smooth=100):
     sum_ = K.sum(K.abs(y_true) + K.abs(y_pred), axis=-1)
     jac = (intersection + smooth) / (sum_ - intersection + smooth)
     return (1 - jac) * smooth
+EPS = 1e-10
+
+
+def dice(true, pred):
+    true = tf.to_float(true>0.5)
+    pred = tf.to_float(pred>0.5)
+
+    intersection =K.sum (true * pred)
+    im_sum = K.sum(true) + K.sum(pred)
+
+    return 2.0 * intersection / (im_sum + EPS)
+
+
+def dice_all(true, pred):
+    return K.mean([dice(t, p) for t, p in zip(true, pred)])
 
 def dice_coef(y_true, y_pred, smooth=1):
     """

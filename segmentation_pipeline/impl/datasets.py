@@ -29,26 +29,33 @@ class DataSetLoader:
         i = 0;
         bx = []
         by = []
+        ids= []
         while True:
-            if (i == len(self.indeces)):
-                i = 0;
+            if i == len(self.indeces):
+                i = 0
+            id=""
             try:
                 item = self.dataset[self.indeces[i]]
                 x, y = item.x, item.y
+                if isinstance(item,PredictionItem):
+                    id=item.id
+
             except:
                 traceback.print_exc()
-                i = i + 1;
+                i = i + 1
                 continue
-            i = i + 1;
+            i = i + 1
+            ids.append(id)
             bx.append(x)
             by.append(y)
             if len(bx) == self.batchSize:
 
-                yield imgaug.imgaug.Batch(images=bx,
+                yield imgaug.imgaug.Batch(data=ids,images=bx,
                                               segmentation_maps=[imgaug.SegmentationMapOnImage(x, shape=x.shape) for x
                                                                  in by])
-                bx = [];
-                by = [];
+                bx = []
+                by = []
+                ids= []
 
     def load(self):
         i=0;
@@ -132,8 +139,27 @@ class DirectoryDataSet:
                 bx = []
                 ps = []
         if len(bx)>0:
-            yield imgaug.Batch(images=bx)
+            yield imgaug.Batch(images=bx,data=ps)
         return
+
+class SimplePNGMaskDataSet:
+    def __init__(self, path, mask):
+        self.path = path;
+        self.mask = mask;
+        self.ids=[x[0:x.index('.')] for x in os.listdir(path)]
+        pass
+
+    def __getitem__(self, item):
+        return PredictionItem(self.ids[item] + str(), imageio.imread(os.path.join(self.path, self.ids[item]+".jpg")),
+                              np.expand_dims(imageio.imread(os.path.join(self.mask, self.ids[item] + ".png")),axis=2).astype(np.float32)/255.0)
+
+    def isPositive(self, item):
+        return True
+
+    def __len__(self):
+        return len(self.ids)
+
+AUGMENTER_QUEUE_LIMIT=50
 
 class KFoldedDataSet:
 
@@ -163,9 +189,9 @@ class KFoldedDataSet:
             indexes = fold[1]
         return indexes
 
-    def generator(self,foldNum, isTrain=True,negatives="all"):
+    def generator(self,foldNum, isTrain=True,negatives="all",returnBatch=False):
         indexes = self.sampledIndexes(foldNum, isTrain, negatives)
-        yield from self.generator_from_indexes(indexes,isTrain)
+        yield from self.generator_from_indexes(indexes,isTrain,returnBatch)
 
     def load(self,foldNum, isTrain=True,negatives="all",ln=16):
         indexes = self.sampledIndexes(foldNum, isTrain, negatives)
@@ -173,11 +199,11 @@ class KFoldedDataSet:
         for v in self.augmentor(isTrain).augment_batches([samples]):
             return v
 
-    def generator_from_indexes(self, indexes,isTrain=True):
+    def generator_from_indexes(self, indexes,isTrain=True,returnBatch=False):
         m = DataSetLoader(self.ds, indexes, self.batchSize).generator
         aug = self.augmentor(isTrain)
         l = imgaug.imgaug.BatchLoader(m)
-        g = imgaug.imgaug.BackgroundAugmenter(l, augseq=aug)
+        g = imgaug.imgaug.BackgroundAugmenter(l, augseq=aug,queue_size=AUGMENTER_QUEUE_LIMIT)
 
         def r():
             num = 0;
@@ -185,7 +211,9 @@ class KFoldedDataSet:
                 r = g.get_batch();
                 x,y= np.array(r.images_aug), np.array([x.arr for x in r.segmentation_maps_aug])
                 num=num+1
-                yield x,y
+                if returnBatch:
+                    yield x,y,r
+                else: yield x,y
 
         return l,g,r
 

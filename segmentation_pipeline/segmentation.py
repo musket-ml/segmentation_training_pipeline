@@ -12,6 +12,7 @@ import segmentation_pipeline.impl.losses
 import segmentation_pipeline.impl.focal_loss
 import imageio
 keras.utils.get_custom_objects()["dice"]= segmentation_pipeline.impl.losses.dice_coef
+keras.utils.get_custom_objects()["dice_bool"]= segmentation_pipeline.impl.losses.dice
 keras.utils.get_custom_objects()["iou"]= segmentation_pipeline.impl.losses.iou_coef
 keras.utils.get_custom_objects()["iot"]= segmentation_pipeline.impl.losses.iot_coef
 
@@ -21,7 +22,6 @@ keras.utils.get_custom_objects()["dice_loss"]= segmentation_pipeline.impl.losses
 keras.utils.get_custom_objects()["jaccard_loss"]= segmentation_pipeline.impl.losses.jaccard_distance_loss
 keras.utils.get_custom_objects()["focal_loss"]= segmentation_pipeline.impl.focal_loss.focal_loss(gamma=1)
 from segmentation_pipeline.impl.deeplab import model as dlm
-
 
 def copy_if_exist(name: str, fr: dict, trg: dict):
     if name in fr:
@@ -40,6 +40,19 @@ custom_models={
 dataset_augmenters={
 
 }
+class AnsembleModel:
+    def __init__(self,models):
+        self.models=models;
+
+    def predict(self,data):
+        res=[]
+        for m in self.models:
+            res.append(m.predict(data))
+
+        rm=res[0]
+        for r in range(1,len(self.models)):
+            rm=rm+res[r];
+        return rm/float(len(self.models));
 
 class PipelineConfig:
 
@@ -108,18 +121,39 @@ class PipelineConfig:
         pass
 
     def load_model(self, fold: int = 0, stage: int = -1):
+        if isinstance(fold,list):
+            mdl=[];
+            for i in fold:
+                mdl.append(self.load_model(i,stage))
+            return AnsembleModel(mdl)
         if stage == -1: stage = len(self.stages) - 1
         ec = ExecutionConfig(fold=fold, stage=stage, subsample=1.0, dr=os.path.dirname(self.path))
         model = self.createAndCompile()
         model.load_weights(ec.weightsPath())
         return model
 
-    def predict_on_directory(self, path, fold=0, stage=0, limit=-1, batchSize=32):
+    def predict_on_directory(self, path, fold=0, stage=0, limit=-1, batchSize=32,ttflips=False):
         mdl = self.load_model(fold, stage)
         ta = self.transformAugmentor()
         for v in datasets.DirectoryDataSet(path, batchSize).generator(limit):
             for z in ta.augment_batches([v]):
-                res = mdl.predict(np.array(z.images_aug))
+                o1=np.array(z.images_aug);
+                res = mdl.predict(o1)
+                if ttflips:
+                    another=imgaug.augmenters.Fliplr(1.0).augment_images(z.images_aug);
+                    res1= mdl.predict(np.array(another))
+                    res1=imgaug.augmenters.Fliplr(1.0).augment_images(res1)
+
+                    another1 = imgaug.augmenters.Flipud(1.0).augment_images(z.images_aug);
+                    res2 = mdl.predict(np.array(another1))
+                    res2 = imgaug.augmenters.Flipud(1.0).augment_images(res2)
+
+                    seq=imgaug.augmenters.Sequential([imgaug.augmenters.Fliplr(1.0), imgaug.augmenters.Flipud(1.0)])
+                    another2 = seq.augment_images(z.images_aug);
+                    res3 = mdl.predict(np.array(another2))
+                    res3 = seq.augment_images(res3)
+
+                    res=(res+res1+res2+res3)/4.0
                 z.segmentation_maps_aug = [imgaug.SegmentationMapOnImage(x, x.shape) for x in res];
                 yield z
 
@@ -132,8 +166,20 @@ class PipelineConfig:
                     id=b.data[i];
                     orig=b.images[i];
                     map=b.segmentation_maps_aug[i]
-                    scaledMap=imgaug.augmenters.Scale(size=(orig.shape[0],orig.shape[1])).augment_segmentation_maps([map])
+                    scaledMap=imgaug.augmenters.Scale({"height": orig.shape[0], "width": orig.shape[1]}).augment_segmentation_maps([map])
                     imageio.imwrite(os.path.join(tpath, id[0:id.index('.')] + ".png"), (scaledMap[0].arr*255).astype(np.uint8))
+                pbar.update(batchSize)
+    def predict_in_directory(self, spath, fold, stage,cb, data,limit=-1, batchSize=32,ttflips=False):
+
+        with tqdm.tqdm(total=len(os.listdir(spath)),unit="files",desc="segmentation of images from "+spath) as pbar:
+            for v in self.predict_on_directory(spath,fold=fold, stage=stage, limit=limit, batchSize=batchSize,ttflips=ttflips):
+                b:imgaug.Batch=v;
+                for i in range(len(b.data)):
+                    id=b.data[i];
+                    orig=b.images[i];
+                    map=b.segmentation_maps_aug[i]
+                    scaledMap=imgaug.augmenters.Scale({"height": orig.shape[0], "width": orig.shape[1]}).augment_segmentation_maps([map])
+                    cb(id,scaledMap[0],data)
                 pbar.update(batchSize)
 
 
@@ -159,7 +205,7 @@ class PipelineConfig:
 
     def transformAugmentor(self):
         transforms = [] + self.transforms
-        transforms.append(imgaug.augmenters.Scale(size=(self.shape[0], self.shape[1])))
+        transforms.append(imgaug.augmenters.Scale({"height": self.shape[0], "width": self.shape[1]}))
         return imgaug.augmenters.Sequential(transforms)
 
     def compile(self, net: keras.Model, opt: keras.optimizers.Optimizer, loss=None):
@@ -172,9 +218,44 @@ class PipelineConfig:
     def createAndCompile(self, lr=None, loss=None):
         return self.compile(self.createNet(), self.createOptimizer(lr=lr), loss=loss);
 
+    def evaluateAll(self,ds, fold:int,cb,stage=-1,negatives="real"):
+        folds = self.kfold(ds, range(0, len(ds)))
+        vl, vg, test_g = folds.generator(fold, False,returnBatch=True);
+        indexes = folds.sampledIndexes(fold, False, negatives)
+        m = self.load_model(fold, stage)
+        num=0
+        with tqdm.tqdm(total=len(indexes), unit="files", desc="segmentation of validation set from " + str(fold)) as pbar:
+            try:
+                for f in test_g():
+                    if num>=len(indexes): break
+                    x, y, b = f
+                    z = m.predict(x)
+                    ids=[]
+                    augs=[]
+                    for i in range(0,len(z)):
+                        if num >= len(indexes): break
+                        orig=b.images[i]
+                        num = num + 1
+                        ma=z[i]
+                        id=b.data[i]
+                        segmentation_maps_aug = [imgaug.SegmentationMapOnImage(ma, ma.shape)];
+                        augmented = imgaug.augmenters.Scale(
+                                    {"height": orig.shape[0], "width": orig.shape[1]}).augment_segmentation_maps(segmentation_maps_aug)
+                        ids.append(id)
+                        augs=augs+augmented
+
+                    res=imgaug.Batch(images=b.images,data=ids,segmentation_maps=b.segmentation_maps)
+                    res.segmentation_maps_aug=augs
+                    yield res
+                    pbar.update(len(ids))
+            finally:
+                vl.terminate();
+                vg.terminate();
+        pass
+
     def kfold(self, ds, indeces):
         transforms = [] + self.transforms
-        transforms.append(imgaug.augmenters.Scale(size=(self.shape[0], self.shape[1])))
+        transforms.append(imgaug.augmenters.Scale({"height": self.shape[0], "width": self.shape[1]}))
         kf= datasets.KFoldedDataSet(ds, indeces, self.augmentation, transforms, batchSize=self.batch)
         if self.dataset_augmenter is not None:
             args = dict(self.dataset_augmenter)
@@ -277,3 +358,4 @@ class DrawResults(keras.callbacks.Callback):
             datasets.draw_test_batch(i, os.path.join(dr, "t_epoch_" + str(epoch) + "." + str(num) + '.jpg'))
             num = num + 1
         pass
+

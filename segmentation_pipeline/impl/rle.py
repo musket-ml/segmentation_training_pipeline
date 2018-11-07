@@ -43,3 +43,12 @@ def masks_as_image(in_mask_list):
             r=rle_decode(mask);
             all_masks += rle_decode(mask)
     return np.expand_dims(all_masks, -1)
+
+def masks_as_images(in_mask_list):
+    # Take the individual ship masks and create a single mask array for all ships
+    all_masks = []
+    for mask in in_mask_list:
+        if isinstance(mask, str):
+            r=rle_decode(mask);
+            all_masks.append(rle_decode(mask).astype(np.float32))
+    return all_masks
