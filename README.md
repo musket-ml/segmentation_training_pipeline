@@ -64,8 +64,15 @@ stages:
   - epochs: 100 #Let's go for 100 epochs
 ```
 
-So as you see, we have decomposed our task in two parts, code that actually trains model and experiment configuration,
-which determines model configuration how it should be trained from the set of predefined building blocks.
+So as you see, we have decomposed our task in two parts, *code that actually trains model* and *experiment configuration*,
+which determines model and how it should be trained from the set of predefined building blocks.
+ 
+What this code actually does behind of the scenes?
+
+-  it splits you data in 5 folds, and trains one model per fold
+-  it takes care about model checkpointing, generates example image/mask/segmentation triples, collects training metrics. All this data will
+   be stored in the folders just near your `config.yaml`
+-  All you folds are initialized from fixed default seed, so different experiments will use exactly same train/validation splits     
  
 ## What is supported?
 
@@ -80,7 +87,6 @@ which determines model configuration how it should be trained from the set of pr
 ### Ansembling predictions from different folds
 
 ## Custom architectures, callbacks, metrics
-
 
 ## Analyzing Results
 
