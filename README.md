@@ -16,7 +16,57 @@ pip install segmentation_pipeline
 
 ## Usage guide
 
+Let's start from the absolutely minimalistic example. Let's say that you have two folders, one of them contains
+jpeg images, and another one - png files containing segmentation masks for them. And you need to train a neural network
+that will do segmentation for you. In this extremly simple setup all that you need to do is to do is to type following 5
 
+lines of python code:
+```python
+from segmentation_pipeline.impl.datasets import SimplePNGMaskDataSet
+from segmentation_pipeline import  segmentation
+ds=SimplePNGMaskDataSet("D:/pics/train","D:/pics/train_mask")
+cfg = segmentation.parse("config.yaml")
+cfg.fit(ds)
+```
+
+Looks simple, but there is a `config.yaml` file in the code, and probably it is the place where everything actually happens.
+
+```yaml
+backbone: mobilenetv2 #lets select classifier backbone for our network 
+architecture: DeepLabV3 #lets select segmentation architecture that we would like to use
+augmentation:
+ Fliplr: 0.5 #let's define some minimal augmentations on images
+ Flipud: 0.5 
+classes: 1 #we have just one class (mask or no mask)
+activation: sigmoid #one class means that our last layer should use sigmoid activation
+encoder_weights: pascal_voc #we would like to start from network pretrained on pascal_voc dataset
+shape: [320, 320, 3] #This is our desired input image and mask size, everything will be resized to fit.
+optimizer: Adam #Adam optimizer is a good default choice
+batch: 16 #Our batch size will be 16
+metrics: #We would like to track some metrics
+  - binary_accuracy 
+  - iou
+primary_metric: val_binary_accuracy #and most interesting metric is val_binary_accuracy
+callbacks: #Let's configure some minimal callbacks
+  EarlyStopping:
+    patience: 15
+    monitor: val_binary_accuracy
+    verbose: 1
+  ReduceLROnPlateau:
+    patience: 4
+    factor: 0.5
+    monitor: val_binary_accuracy
+    mode: auto
+    cooldown: 5
+    verbose: 1
+loss: binary_crossentropy #We use simple binary_crossentropy loss
+stages:
+  - epochs: 100 #Let's go for 100 epochs
+```
+
+So as you see, we have decomposed our task in two parts, code that actually trains model and experiment configuration,
+which determines model configuration how it should be trained from the set of predefined building blocks.
+ 
 ## What is supported?
 
 ### Multistage training
@@ -26,6 +76,8 @@ pip install segmentation_pipeline
 ### Test Time augmentation
 
 ### Negative Examples
+
+### Ansembling predictions from different folds
 
 ## Custom architectures, callbacks, metrics
 
