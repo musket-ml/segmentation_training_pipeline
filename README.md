@@ -7,3 +7,29 @@ So I decided to extract repetitive things into framework that will work at least
  - experiment configurations should be cleanly separated from model definitions.
  - experiment configuration files should be easy to compare, and should fully describe experiment that is being performed except of the dataset
 - common blocks like an architecture, callbacks, storing model metrics, visualizing network predictions, should be written once and should be a part of common library
+
+## Installation
+
+```
+pip install segmentation_pipeline
+```
+
+## Usage guide
+
+
+## What is supported?
+
+### Multistage training
+
+### Composite losses
+
+### Test Time augmentation
+
+### Negative Examples
+
+## Custom architectures, callbacks, metrics
+
+
+## Analyzing Results
+
+## Examples
