@@ -117,7 +117,7 @@ cfg.predict_in_directory("D:/images_to_segment", [0,1,2,3,4], onPredict, {"pred"
 ```
 another supported option is to ansemble results from extra test time augmentation (flips), by adding keyword arg `ttflips=True`
   
-###Custom evaluation code
+### Custom evaluation code
 
 Some times you need to run custom evaluation code, to do this you may use: `evaluateAll` method, which provides an iterator
 on the batches containing, original images, training masks, and predicted masks
@@ -134,7 +134,7 @@ for batch in cfg.evaluateAll(ds,2):
         num=num+1
 ```
 
-###Accessing model
+### Accessing model
 You may get trained keras model, by using following call: ```cfg.load_model(fold, stage)```
 
 ## Analyzing Experiments Results
