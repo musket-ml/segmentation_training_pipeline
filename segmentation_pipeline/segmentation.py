@@ -218,7 +218,7 @@ class PipelineConfig:
     def createAndCompile(self, lr=None, loss=None):
         return self.compile(self.createNet(), self.createOptimizer(lr=lr), loss=loss);
 
-    def evaluateAll(self,ds, fold:int,cb,stage=-1,negatives="real"):
+    def evaluateAll(self,ds, fold:int,stage=-1,negatives="real"):
         folds = self.kfold(ds, range(0, len(ds)))
         vl, vg, test_g = folds.generator(fold, False,returnBatch=True);
         indexes = folds.sampledIndexes(fold, False, negatives)
@@ -245,7 +245,7 @@ class PipelineConfig:
                         augs=augs+augmented
 
                     res=imgaug.Batch(images=b.images,data=ids,segmentation_maps=b.segmentation_maps)
-                    res.segmentation_maps_aug=augs
+                    res.predicted_maps_aug=augs
                     yield res
                     pbar.update(len(ids))
             finally:

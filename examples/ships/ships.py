@@ -166,32 +166,15 @@ def main():
     print(len(ind))
     print(neg0/len(ind))
     total={}
-    for d in range(1, 20):
-        total[d]=0;
-    for b in cfg.evaluateAll(ds,2,None):
-        for i in range(len(b.segmentation_maps_aug)):
-            masks = ds.get_masks(b.data[i])
-
+    for batch in cfg.evaluateAll(ds,2,None):
+        for i in range(len(batch.predicted_maps_aug)):
+            masks = ds.get_masks(batch.data[i])
             for d in range(1,20):
-                cur_seg = binary_opening(b.segmentation_maps_aug[i].arr > d/20, np.expand_dims(disk(2), -1))
+                cur_seg = binary_opening(batch.predicted_maps_aug[i].arr > d/20, np.expand_dims(disk(2), -1))
                 cm = rle.masks_as_images(rle.multi_rle_encode(cur_seg))
                 pr = f2(masks, cm);
                 total[d]=total[d]+pr
-
-            print(total)
-
-
-
-            if (len(masks) > 0):
-                pass
-                #print(len(cm),len(masks),pr)
-            else:
-                #print(b.data[i])
-                neg=neg+1;
-            #total=total+pr;
             num=num+1
-            if (len(masks)>0):
-                print(total)
         #num=num+len(b.segmentation_maps_aug)
 
     print(num)

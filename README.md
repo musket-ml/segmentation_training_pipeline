@@ -101,15 +101,44 @@ def onPredict(file_name, img, data):
 cfg= segmentation.parse("config.yaml")
 
 predictions = [],images = []
-d = {"pred": predictions, "images": images}
-
 #Now lets use best model from fold 0 to do image segmentation on images from images_to_segment
-cfg.predict_in_directory("D:/images_to_segment", 0, onPredict, d)
+cfg.predict_in_directory("D:/images_to_segment", 0, onPredict, {"pred": predictions, "images": images})
 
 #Let, store results in csv
 df = pd.DataFrame.from_dict({'image': images, 'rle_mask': predictions})
 df.to_csv('baseline_submission.csv', index=False)
 ``` 
+
+Okey, what if you want to ansemble model from a several folds, just - pass list of fold numbers to
+`predict_in_directory` like in the following examples:
+
+```python
+cfg.predict_in_directory("D:/images_to_segment", [0,1,2,3,4], onPredict, {"pred": predictions, "images": images})
+```
+another supported option is to ansemble results from extra test time augmentation (flips), by adding keyword arg `ttflips=True`
+  
+###Custom evaluation code
+
+Some times you need to run custom evaluation code, to do this you may use: `evaluateAll` method, which provides an iterator
+on the batches containing, original images, training masks, and predicted masks
+
+```python
+for batch in cfg.evaluateAll(ds,2):
+    for i in range(len(batch.predicted_maps_aug)):
+        masks = ds.get_masks(batch.data[i])
+        for d in range(1,20):
+            cur_seg = binary_opening(batch.predicted_maps_aug[i].arr > d/20, np.expand_dims(disk(2), -1))
+            cm = rle.masks_as_images(rle.multi_rle_encode(cur_seg))
+            pr = f2(masks, cm);
+            total[d]=total[d]+pr
+        num=num+1
+```
+
+###Accessing model
+You may get trained keras model, by using following call: ```cfg.load_model(fold, stage)```
+
+## Analyzing Experiments Results
+
 
  
 ## What is supported?
@@ -118,14 +147,10 @@ df.to_csv('baseline_submission.csv', index=False)
 
 ### Composite losses
 
-### Test Time augmentation
-
 ### Negative Examples
-
-### Ansembling predictions from different folds
 
 ## Custom architectures, callbacks, metrics
 
-## Analyzing Results
+
 
 ## Examples
