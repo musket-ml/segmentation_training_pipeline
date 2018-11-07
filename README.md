@@ -16,6 +16,8 @@ pip install segmentation_pipeline
 
 ## Usage guide
 
+### Training a model
+
 Let's start from the absolutely minimalistic example. Let's say that you have two folders, one of them contains
 jpeg images, and another one - png files containing segmentation masks for them. And you need to train a neural network
 that will do segmentation for you. In this extremly simple setup all that you need to do is to do is to type following 5
@@ -73,6 +75,42 @@ What this code actually does behind of the scenes?
 -  it takes care about model checkpointing, generates example image/mask/segmentation triples, collects training metrics. All this data will
    be stored in the folders just near your `config.yaml`
 -  All you folds are initialized from fixed default seed, so different experiments will use exactly same train/validation splits     
+
+### Using trained model
+
+Okey, our model is trained, now we need to actually do image segmenation, let's say that we need to run image segmentation on
+images in the directory and store results in csv file:
+
+```python
+from segmentation_pipeline import  segmentation
+from segmentation_pipeline.impl.rle import rle_encode
+from skimage.morphology import remove_small_objects, remove_small_holes
+import pandas as pd
+
+#this is our callback that is called for every image
+def onPredict(file_name, img, data):
+    threshold = 0.25
+    predictions = data["pred"]
+    imgs = data["images"]
+    post_img = remove_small_holes(remove_small_objects(img.arr > threshold))
+    rle = rle_encode(post_img)
+    predictions.append(rle)
+    imgs.append(file_name[:file_name.index(".")])
+    pass
+
+cfg= segmentation.parse("config.yaml")
+
+predictions = [],images = []
+d = {"pred": predictions, "images": images}
+
+#Now lets use best model from fold 0 to do image segmentation on images from images_to_segment
+cfg.predict_in_directory("D:/images_to_segment", 0, onPredict, d)
+
+#Let, store results in csv
+df = pd.DataFrame.from_dict({'image': images, 'rle_mask': predictions})
+df.to_csv('baseline_submission.csv', index=False)
+``` 
+
  
 ## What is supported?
 
