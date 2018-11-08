@@ -76,6 +76,33 @@ What this code actually does behind of the scenes?
    be stored in the folders just near your `config.yaml`
 -  All you folds are initialized from fixed default seed, so different experiments will use exactly same train/validation splits     
 
+#### Balancing your data
+
+#### Multistage training
+
+Sometimes you need to to split your training in several stages, you can easily do it by adding several stage entries
+in your experiments configuration file like in the following example:
+
+```yaml
+stages:
+  - epochs: 6 #Train for 6 epochs
+    negatives: none #do not include negative examples in your training set 
+    validation_negatives: real #validation should contain all negative examples    
+
+  - lr: 0.0001 #let's use different starting learning rate
+    epochs: 6
+    negatives: real
+    validation_negatives: real
+
+  - loss: lovasz_loss #lets override loss function
+    lr: 0.00001
+    epochs: 6
+    initial_weights: ./fpn-resnext2/weights/best-0.1.weights #lets load weights from this file    
+```
+
+stage entries allow you to configure custom learning rate, balance of negative examples, callbacks, loss function
+and even initial weights that should be used on a particular stage.
+
 ### Using trained model
 
 Okey, our model is trained, now we need to actually do image segmenation, let's say that we need to run image segmentation on
