@@ -50,7 +50,7 @@ def main():
     # cfg = segmentation.parse("psp/ship_config.yaml")
     # cfg.fit(ds)
     cfg = segmentation.parse("fpn-resnext2/ship_config.yaml")
-    cfg.fit(ds,foldsToExecute=[2],start_from_stage=4)
+    #cfg.fit(ds,foldsToExecute=[2],start_from_stage=4)
     #print("A")
     num=0;
 
@@ -129,7 +129,7 @@ def main():
         out_pred_rows=d["pred"]
         good=d["good"]
         num = d["num"]
-        cur_seg = binary_opening(img.arr > 0.53, np.expand_dims(disk(2), -1))
+        cur_seg = binary_opening(img.arr > 0.5, np.expand_dims(disk(2), -1))
         cur_rles = rle.multi_rle_encode(cur_seg)
         if len(cur_rles) > 0:
             good = good + 1;
@@ -146,7 +146,7 @@ def main():
 
 
     d={"pred": out_pred_rows, "good": 0, "num": 0}
-    cfg.predict_in_directory("F:/all/test_v2",2,3,onPredict,d,ttflips=True)
+    cfg.predict_in_directory("F:/all/test_v2",2,4,onPredict,d,ttflips=True)
     submission_df = pd.DataFrame(out_pred_rows)[['ImageId', 'EncodedPixels']]
     submission_df.to_csv('mySubmission.csv', index=False)
     print("Good:"+str(d["good"]))
