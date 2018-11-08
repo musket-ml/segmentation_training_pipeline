@@ -76,7 +76,71 @@ What this code actually does behind of the scenes?
    be stored in the folders just near your `config.yaml`
 -  All you folds are initialized from fixed default seed, so different experiments will use exactly same train/validation splits     
 
+#### Custom datasets
+
+Training data and masks are not necessary stored in files, so sometimes you need to declare your own dataset class,
+for example the following code was used in my experiments with [Airbus ship detection challenge](https://www.kaggle.com/c/airbus-ship-detection/overview)
+to decode segmentation masks from rle encoded strings stored in csv file 
+
+```python
+from segmentation_pipeline.impl.datasets import PredictionItem
+import os
+from segmentation_pipeline.impl import rle
+import imageio
+import pandas as pd
+
+class SegmentationRLE:
+
+    def __init__(self,path,imgPath):
+        self.data=pd.read_csv(path);
+        self.values=self.data.values;
+        self.imgPath=imgPath;
+        self.ship_groups=self.data.groupby('ImageId');
+        self.masks=self.ship_groups['ImageId'];
+        self.ids=list(self.ship_groups.groups.keys())
+        pass
+    
+    def __len__(self):
+        return len(self.masks)
+
+
+    def __getitem__(self, item):
+        pixels=self.ship_groups.get_group(self.ids[item])["EncodedPixels"]
+        return PredictionItem(self.ids[item] + str(), imageio.imread(os.path.join(self.imgPath,self.ids[item])),
+                              rle.masks_as_image(pixels) > 0.5)
+
+
+    def get_masks(self,id):
+        pixels = self.ship_groups.get_group(id)["EncodedPixels"]
+        return rle.masks_as_images(pixels)
+    
+```         
+
 #### Balancing your data
+
+One often case is the situation when part of your images, does not contain any objects of interest, like in 
+[Airbus ship detection challenge](https://www.kaggle.com/c/airbus-ship-detection/overview), more over your data may
+be to heavily inbalanced, so you may want to rebalance it, alternatively you may want to inject some additional
+images that does not contain objects of interest, to decrease amount of false positives that is produced by framework.
+    
+This scenarious are supported by `negatives` and `validation_negatives` settings of training stage configuration,
+this settings accept following values:
+
+- none - exclude negative examples from the data
+- real - include all negative examples 
+- integer number(1 or 2 or anything), how many negative examples should be included per one positive example   
+
+if you are using this setting your dataset class must support `isPositive` method which returns true for indexes
+that contain positive examples: 
+
+```python        
+    def isPositive(self, item):
+        pixels=self.ddd.get_group(self.ids[item])["EncodedPixels"]
+        for mask in pixels:
+            if isinstance(mask, str):
+                return True;
+        return False
+```        
 
 #### Multistage training
 
