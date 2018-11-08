@@ -131,7 +131,6 @@ for batch in cfg.evaluateAll(ds,2):
             cm = rle.masks_as_images(rle.multi_rle_encode(cur_seg))
             pr = f2(masks, cm);
             total[d]=total[d]+pr
-        num=num+1
 ```
 
 ### Accessing model
@@ -139,7 +138,15 @@ You may get trained keras model, by using following call: ```cfg.load_model(fold
 
 ## Analyzing Experiments Results
 
+Okey, we have done a lot of experiments and now we need to compare the results, and understand what works best. This repository
+contains [script]segmentation_pipeline/analize.py)  
 
+```yaml
+path,fold_count,architecture,binary_accuracy,epoch,loss,stage,val_binary_accuracy,val_loss
+.\examples\ships\fpn\ship_config.yaml,5,FPN,0.9990433043231765,1.0,0.0027029348927294326,0.0,0.9991096854714053,0.002533589961718436
+.\examples\ships\linknet\ship_config.yaml,5,Linknet,0.9990921646279263,1.0,0.002390015073386146,0.0,0.998647365460988,0.007392812771155752
+.\examples\ships\psp\ship_config.yaml,3,PSPNet,0.9989179245640064,0.6666666666666666,0.0029732712776942317,0.0,0.999002665743436,0.002864837050545919
+```
  
 ## What is supported?
 
