@@ -295,10 +295,16 @@ All them support has support for the weights pretrained on imagenet:
 encoder_weights: imagenet
 ```
 
-At this moement `DeeplabV3` architecture supports following backbones:
+At this moment `DeeplabV3` architecture supports following backbones:
  - mobilenetv2
  - xception
- 
+
+Deeplab supports weights pretrained on pacal_voc
+
+```yaml
+encoder_weights: pascal_voc
+``` 
+
 Each architecture also supports some specific options, list of options is documented in [segmentation RAML library](segmentation_pipeline/schemas/segmentation.raml).
 
 Supported augmentations are documented in [augmentation RAML library](segmentation_pipeline/schemas/augmenters.raml)
