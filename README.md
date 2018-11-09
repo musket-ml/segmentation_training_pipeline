@@ -168,12 +168,6 @@ that contain positive examples:
 Sometimes you need to to split your training in several stages, you can easily do it by adding several stage entries
 in your experiments configuration file like in the following example:
 
-### Composite losses
-
-### Cyclical learning rates
-
-### LR Finder
-
 ```yaml
 stages:
   - epochs: 6 #Train for 6 epochs
@@ -193,6 +187,13 @@ stages:
 
 stage entries allow you to configure custom learning rate, balance of negative examples, callbacks, loss function
 and even initial weights that should be used on a particular stage.
+
+#### Composite losses
+
+#### Cyclical learning rates
+
+#### LR Finder
+
 
 ### Using trained model
 
@@ -264,7 +265,45 @@ was actually changed in your experiment like in the following [example](report.c
  
 ## What is supported?
 
-Supported options are documented in 
+At this moment segementation pipeline support following architectures:
+
+- Unet
+- Linknet
+- PSP
+- FPN
+- DeeplabV3
+
+`FPN`, `PSP`, `Linkenet`, `UNet` architectures supports following backbones: 
+
+  - vgg16 
+  - vgg19 
+  - resnet18
+  - resnet34
+  - resnet50 
+  - resnet101
+  - resnet152
+  - resnext50
+  - resnext101 
+  - densenet121
+  - densenet169
+  - densenet201
+  - inceptionv3 
+  - inceptionresnetv2
+
+All them support has support for the weights pretrained on imagenet:
+```yaml
+encoder_weights: imagenet
+```
+
+At this moement `DeeplabV3` architecture supports following backbones:
+ - mobilenetv2
+ - xception
+ 
+Each architecture also supports some specific options, list of options is documented in [segmentation RAML library](segmentation_pipeline/schemas/segmentation.raml).
+
+Supported augmentations are documented in [augmentation RAML library](segmentation_pipeline/schemas/augmenters.raml)
+
+Callbacks are docummnted in [augmentation RAML library](segmentation_pipeline/schemas/callbacks.raml)  
 
 ## Custom architectures, callbacks, metrics
 
