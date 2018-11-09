@@ -217,6 +217,24 @@ class KFoldedDataSet:
 
         return l,g,r
 
+    def classification_generator_from_indexes(self, indexes,isTrain=True):
+        m = DataSetLoader(self.ds, indexes, self.batchSize).generator
+        aug = self.augmentor(isTrain)
+        l = imgaug.imgaug.BatchLoader(m)
+        g = imgaug.imgaug.BackgroundAugmenter(l, augseq=aug,queue_size=AUGMENTER_QUEUE_LIMIT)
+        def r():
+            num = 0;
+            while True:
+                r = g.get_batch();
+                x,y= np.array(r.images_aug), np.array([x.arr for x in r.segmentation_maps_aug])
+                rs=np.zeros((len(y)))
+                for i in range(0,len(y)):
+                    if y[i].max()>0.5:
+                        rs[i]=1.0
+                num=num+1
+                yield x,rs
+        return l,g,r
+
     def augmentor(self, isTrain)->imgaug.augmenters.Augmenter:
         allAug = [];
         if isTrain:

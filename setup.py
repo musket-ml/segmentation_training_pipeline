@@ -1,7 +1,7 @@
 from setuptools import setup
 import setuptools
 setup(name='segmentation_pipeline',
-      version='0.17',
+      version='0.18',
       description='Declaraqtively configured pipeline for image segmentation',
       url='https://github.com/petrochenko-pavel-a/segmentation_training_pipeline',
       author='Petrochenko Pavel',

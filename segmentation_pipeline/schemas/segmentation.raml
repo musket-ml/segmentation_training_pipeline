@@ -28,6 +28,13 @@ types:
     type: HasLoss
     discriminator: architecture
     properties:
+      classifier:
+        type: string
+        (meta.custom): true
+        enum: [resnet50,densenet121,densenet169,densenet201]
+      classifier_lr:
+        type: number
+        (meta.custom): true
       dataset_augmenter?:
         type: AugmenterConfig
         (meta.custom): true

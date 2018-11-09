@@ -1,8 +1,25 @@
 # Segmentation Training Pipeline
 
-Research Pipeline for image masking/segmentation in Keras
+  * [Motivation](#motivation)
+  * [Installation](#installation)
+  * [Usage guide](#usage-guide)
+    + [Training a model](#training-a-model)
+      - [Custom datasets](#custom-datasets)
+      - [Balancing your data](#balancing-your-data)
+      - [Multistage training](#multistage-training)
+      - [Composite losses](#composite-losses)
+      - [Cyclical learning rates](#cyclical-learning-rates)
+      - [LR Finder](#lr-finder)      
+    + [Using trained model](#using-trained-model)
+    + [Custom evaluation code](#custom-evaluation-code)
+    + [Accessing model](#accessing-model)
+  * [Analyzing Experiments Results](#analyzing-experiments-results)
+  * [What is supported?](#what-is-supported-)    
+  * [Custom architectures, callbacks, metrics](#custom-architectures--callbacks--metrics)
+  * [Examples](#examples)
 
 
+## Motivation
 
 Idea for this project came from my first attempts to participate in Kaggle competitions. My programmers heart was painfully damaged by looking on my own code as well as on other people kernels. Code was highly repetitive, suffering from numerous reimplementation of same or almost same things through the kernels, model/experiment configuration was oftenly mixed with models code, in other words from programmer perspective it all looked horrible. 
 
@@ -10,21 +27,6 @@ So I decided to extract repetitive things into framework that will work at least
  - experiment configurations should be cleanly separated from model definitions.
  - experiment configuration files should be easy to compare, and should fully describe experiment that is being performed except of the dataset
 - common blocks like an architecture, callbacks, storing model metrics, visualizing network predictions, should be written once and should be a part of common library
-
-  * [Installation](#installation)
-  * [Usage guide](#usage-guide)
-    + [Training a model](#training-a-model)
-      - [Custom datasets](#custom-datasets)
-      - [Balancing your data](#balancing-your-data)
-      - [Multistage training](#multistage-training)
-    + [Using trained model](#using-trained-model)
-    + [Custom evaluation code](#custom-evaluation-code)
-    + [Accessing model](#accessing-model)
-  * [Analyzing Experiments Results](#analyzing-experiments-results)
-  * [What is supported?](#what-is-supported-)
-    + [Composite losses](#composite-losses)
-  * [Custom architectures, callbacks, metrics](#custom-architectures--callbacks--metrics)
-  * [Examples](#examples)
 
 
 ## Installation
@@ -166,6 +168,12 @@ that contain positive examples:
 Sometimes you need to to split your training in several stages, you can easily do it by adding several stage entries
 in your experiments configuration file like in the following example:
 
+### Composite losses
+
+### Cyclical learning rates
+
+### LR Finder
+
 ```yaml
 stages:
   - epochs: 6 #Train for 6 epochs
@@ -256,8 +264,24 @@ was actually changed in your experiment like in the following [example](report.c
  
 ## What is supported?
 
-### Composite losses
+Supported options are documented in 
 
 ## Custom architectures, callbacks, metrics
+
+Segmentation pipeline uses keras custom objects registry to find entities, so if you need to use
+custom loss function or metric all that you need to do is to register it in Keras as: 
+
+```python
+keras.utils.get_custom_objects()["my_loss"]= my_loss
+```
+
+If you want to inject new architecture, you need to register it in `segmentation.custom_models` dictionary
+
+for example:
+```python
+segmentation.custom.models['MyUnet']=MyUnet 
+```
+where `MyUnet` is a function that accepts architecture parameters as keyword arguments and returns an instance
+of keras model
 
 ## Examples

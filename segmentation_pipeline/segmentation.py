@@ -40,6 +40,7 @@ custom_models={
 dataset_augmenters={
 
 }
+import keras.applications as app
 class AnsembleModel:
     def __init__(self,models):
         self.models=models;
@@ -83,6 +84,29 @@ class PipelineConfig:
                 {"completed": True, "cfgName": os.path.basename(self.path), "subsample": subsample,
                  "folds": foldsToExecute},
                 f)
+
+
+    def fit_classifier(self,d,fold:int,model:keras.Model,batchSize=None):
+        if batchSize==None:
+            batchSize=self.batch
+        fld = self.kfold(d,indeces=None,batch=batchSize);
+        indeces = fld.indexes(fold, True)
+        vindeces = fld.indexes(fold, False)
+
+        r, v, rs = fld.classification_generator_from_indexes(indeces);
+        r1, v1, rs1 = fld.classification_generator_from_indexes(vindeces);
+        try:
+            ec = ExecutionConfig(fold=fold, stage=0, dr=os.path.dirname(self.path))
+            cb=[]+self.callbacks
+            cb.append(keras.callbacks.CSVLogger(ec.classifier_metricsPath()))
+            cb.append(keras.callbacks.ModelCheckpoint(ec.classifier_weightsPath(), save_best_only=True, monitor="val_binary_accuracy",verbose=1))
+            model.fit_generator(rs(), len(indeces) / batchSize, 20, validation_data=rs1(), validation_steps=len(vindeces) / batchSize,callbacks=cb)
+            pass
+        finally:
+            r.terminate()
+            v.terminate()
+            r1.terminate()
+            v1.terminate()
 
     def evaluate(self, d, fold, stage, negatives="all", limit=16):
         mdl = self.load_model(fold, stage)
@@ -196,6 +220,14 @@ class PipelineConfig:
                 cleaned[pynama] = self.all[arg];
         return clazz(**cleaned)
 
+    def createAndCompileClassifier(self,lr=0.0001):
+        mdl: keras.Model = app.DenseNet201(input_shape=self.shape, include_top=False)
+        l0 = keras.layers.GlobalAveragePooling2D(name='avg_pool')(mdl.layers[-1].output)
+        l = keras.layers.Dense(1, activation=keras.activations.sigmoid)(l0)
+        mdl = keras.Model(mdl.layers[0].input, l)
+        mdl.compile(keras.optimizers.Adam(lr=lr), keras.losses.binary_crossentropy, metrics=["binary_accuracy"])
+        return mdl
+
     def createOptimizer(self, lr=None):
         r = getattr(opt, self.optimizer)
         ds = create_with(["lr", "clipnorm", "clipvalue"], self.all);
@@ -209,6 +241,10 @@ class PipelineConfig:
         return imgaug.augmenters.Sequential(transforms)
 
     def compile(self, net: keras.Model, opt: keras.optimizers.Optimizer, loss=None):
+
+        if (loss=='lovasz_loss' and isinstance(net.layers[-1],keras.layers.Activation)):
+            net=keras.Model(net.layers[0].input,net.layers[-1].input);
+            net.summary()
         if loss:
             net.compile(opt, loss, self.metrics)
         else:
@@ -253,10 +289,13 @@ class PipelineConfig:
                 vg.terminate();
         pass
 
-    def kfold(self, ds, indeces):
+    def kfold(self, ds, indeces=None,batch=None):
+        if batch==None:
+            batch=self.batch
+        if indeces is None: indeces=range(0,len(ds))
         transforms = [] + self.transforms
         transforms.append(imgaug.augmenters.Scale({"height": self.shape[0], "width": self.shape[1]}))
-        kf= datasets.KFoldedDataSet(ds, indeces, self.augmentation, transforms, batchSize=self.batch)
+        kf= datasets.KFoldedDataSet(ds, indeces, self.augmentation, transforms, batchSize=batch)
         if self.dataset_augmenter is not None:
             args = dict(self.dataset_augmenter)
             del args["name"]
@@ -276,6 +315,7 @@ def ensure(p):
         os.makedirs(p);
     except:
         pass
+
 class ExecutionConfig:
     def __init__(self, fold=0, stage=0, subsample=1.0, dr: str = ""):
         self.subsample = subsample
@@ -288,9 +328,17 @@ class ExecutionConfig:
         ensure(os.path.join(self.dirName, "weights"))
         return os.path.join(self.dirName, "weights","best-" + str(self.fold) + "." + str(self.stage) + ".weights")
 
+    def classifier_weightsPath(self):
+        ensure(os.path.join(self.dirName, "classify_weights"))
+        return os.path.join(self.dirName, "classify_weights","best-" + str(self.fold) + "." + str(self.stage) + ".weights")
+
     def metricsPath(self):
         ensure(os.path.join(self.dirName, "metrics"))
         return os.path.join(self.dirName, "metrics","metrics-" + str(self.fold) + "." + str(self.stage) + ".csv")
+
+    def classifier_metricsPath(self):
+        ensure(os.path.join(self.dirName, "classify_metrics"))
+        return os.path.join(self.dirName, "classify_metrics","metrics-" + str(self.fold) + "." + str(self.stage) + ".csv")
 
 
 class Stage:
