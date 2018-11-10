@@ -1,4 +1,4 @@
-import k
+import keras
 def plus(s1,f1,s2,f2):
     def impl(x,y):
         return s1*f1(x,y)+s2*f2(x,y)
@@ -19,17 +19,18 @@ def ps(s:str):
                 func=v
             if v[0].isdecimal():
                 scales=scales*float(v)
+        func=keras.losses.get(func)
         ops.append((scales,func))
 
     def loss(x,y):
         fr=None
         for v in ops:
             val=v[1](x,y)*v[0]
-            if fr:
+            if fr is None:
                 fr=val
             else:
                 fr=fr+val
         return fr
     return loss
 
-print(ps("a*2.2+b"))
+#print(ps("a*2.2+b"))

@@ -39,12 +39,39 @@ class SegmentationRLE:
     def __len__(self):
         return len(self.masks)
 
+class CropAndSplit:
+    def __init__(self,orig,n):
+        self.ds=orig
+        self.parts=n
+        self.lastPos=None
+
+    def __getitem__(self, item):
+        pos=item//self.parts*self.parts;
+        off=item%(self.parts*self.parts)
+        if pos==self.lastPos:
+            dm=self.lastImage
+        else:
+            dm=self.ds[item]
+            self.lastImage=dm
+        row=off//self.parts
+        col=off%self.parts
+        x,y=dm
+        return self.crop(row,col,x),self.crop(row,col,x)
+
+    def crop(self,x,y,image):
+        z=image.shape[0]//self.parts
+        return image[z*x:z*(x+1),z*y:z*(y+1), :]
+
+    def __len__(self):
+        return len(self.ds)*self.parts*self.parts
+
 ds = SegmentationRLE ("F:/all/train_ship_segmentations.csv","D:/train_ships/train")
 from skimage.morphology import binary_opening, disk
 import skimage
 import numpy as np
 import keras
 def main():
+
     #segmentation.execute(ds, "ship_config.yaml")
     # cfg=segmentation.parse("fpn/ship_config.yaml")
     # cfg.fit(ds)
@@ -53,28 +80,58 @@ def main():
     # cfg = segmentation.parse("psp/ship_config.yaml")
     # cfg.fit(ds)
     cfg = segmentation.parse("fpn3/ship_config.yaml")
+    cfg.fit(ds,foldsToExecute=[2],start_from_stage=3)
+
+    cfg0 = segmentation.parse("./fpn-resnext2/ship_config.yaml")
+    mdl=cfg0.createAndCompileClassifier()
+    mdl.load_weights("./fpn-resnext2/classify_weights/best-2.0.weights")
+    exists={}
+    goodC=0;
+    for v in cfg0.predict_on_directory_with_model(mdl,"F:/all/test_v2",ttflips=True):
+        for i in range(0,len(v.data)):
+            if (v.predictions[i]>0.8):
+                goodC=goodC+1;
+
+            exists[v.data[i]]=v.predictions[i]
+    print(goodC)
+    #cfg0.fit_classifier(ds,2,mdl,12,stage=22)
 
 
 
-    #mdl=cfg.createAndCompileClassifier()
-    #mdl.load_weights("./fpn-resnext2/classify_weights/best-2.0.weights")
-    #cfg.fit_classifier(ds,2,mdl,12)
-
-
-    cfg.fit(ds,foldsToExecute=[2])
     #print("A")
     num=0;
 
 
     #cfg.predict_to_directory("F:/all/test_v2","F:/all/test_v2_seg",batchSize=16)
+    def onPredict(id, img, d):
+        exists=d["exists"]
+        out_pred_rows = d["pred"]
+        if exists[id]<0.8:
+            out_pred_rows += [{'ImageId': id, 'EncodedPixels': None}]
+            return
 
+        good = d["good"]
+        num = d["num"]
+        cur_seg = binary_opening(img.arr > 0.53, np.expand_dims(disk(2), -1))
+        cur_rles = rle.multi_rle_encode(cur_seg)
+        if len(cur_rles) > 0:
+            good = good + 1;
+            for c_rle in cur_rles:
+                out_pred_rows += [{'ImageId': id, 'EncodedPixels': c_rle}]
+        else:
+            out_pred_rows += [{'ImageId': id, 'EncodedPixels': None}]
+        num = num + 1;
+        d["good"] = good
+        d["num"] = num
+
+        pass
     out_pred_rows=[]
-
-    #cfg.predict_in_directory("F:/all/test_v2",2,4,onPredict,d,ttflips=True)
-    #submission_df = pd.DataFrame(out_pred_rows)[['ImageId', 'EncodedPixels']]
-    #submission_df.to_csv('mySubmission.csv', index=False)
-    #print("Good:"+str(d["good"]))
-    #print("Num:" + str(d["num"]))
+    d = {"pred": out_pred_rows, "good": 0, "num": 0,"exists":exists}
+    cfg.predict_in_directory("F:/all/test_v2",2,2,onPredict,d,ttflips=True)
+    submission_df = pd.DataFrame(out_pred_rows)[['ImageId', 'EncodedPixels']]
+    submission_df.to_csv('mySubmission.csv', index=False)
+    print("Good:"+str(d["good"]))
+    print("Num:" + str(d["num"]))
 
 if __name__ == '__main__':
     main()

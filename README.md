@@ -11,6 +11,7 @@
       - [Cyclical learning rates](#cyclical-learning-rates)
       - [LR Finder](#lr-finder)      
     + [Using trained model](#using-trained-model)
+      - [Ansembling predictions and test time augmentation](#ansembling-predictions)
     + [Custom evaluation code](#custom-evaluation-code)
     + [Accessing model](#accessing-model)
   * [Analyzing Experiments Results](#analyzing-experiments-results)
@@ -190,6 +191,12 @@ and even initial weights that should be used on a particular stage.
 
 #### Composite losses
 
+Framework support composing loss as a weighted sum of predefined loss functions. For example following construction
+```yaml
+loss: binary_crossentropy+0.1*dice_loss
+```
+will result in loss function which is composed from `binary_crossentropy` and  `dice_loss` functions
+
 #### Cyclical learning rates
 
 #### LR Finder
@@ -227,6 +234,7 @@ cfg.predict_in_directory("D:/images_to_segment", 0, onPredict, {"pred": predicti
 df = pd.DataFrame.from_dict({'image': images, 'rle_mask': predictions})
 df.to_csv('baseline_submission.csv', index=False)
 ``` 
+#### Ansembling predictions
 
 Okey, what if you want to ansemble model from a several folds, just - pass list of fold numbers to
 `predict_in_directory` like in the following examples:
@@ -305,16 +313,16 @@ Deeplab supports weights pretrained on pacal_voc
 encoder_weights: pascal_voc
 ``` 
 
-Each architecture also supports some specific options, list of options is documented in [segmentation RAML library](segmentation_pipeline/schemas/segmentation.raml).
+Each architecture also supports some specific options, list of options is documented in [segmentation RAML library](segmentation_pipeline/schemas/segmentation.raml#L166).
 
 Supported augmentations are documented in [augmentation RAML library](segmentation_pipeline/schemas/augmenters.raml)
 
-Callbacks are docummnted in [augmentation RAML library](segmentation_pipeline/schemas/callbacks.raml)  
+Callbacks are documented in [callbacks RAML library](segmentation_pipeline/schemas/callbacks.raml)  
 
 ## Custom architectures, callbacks, metrics
 
 Segmentation pipeline uses keras custom objects registry to find entities, so if you need to use
-custom loss function or metric all that you need to do is to register it in Keras as: 
+custom loss function,activation or metric all that you need to do is to register it in Keras as: 
 
 ```python
 keras.utils.get_custom_objects()["my_loss"]= my_loss

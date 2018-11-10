@@ -41,6 +41,7 @@ dataset_augmenters={
 
 }
 import keras.applications as app
+from  segmentation_pipeline.impl import composite
 class AnsembleModel:
     def __init__(self,models):
         self.models=models;
@@ -86,7 +87,7 @@ class PipelineConfig:
                 f)
 
 
-    def fit_classifier(self,d,fold:int,model:keras.Model,batchSize=None):
+    def fit_classifier(self,d,fold:int,model:keras.Model,batchSize=None,stage=0):
         if batchSize==None:
             batchSize=self.batch
         fld = self.kfold(d,indeces=None,batch=batchSize);
@@ -96,7 +97,7 @@ class PipelineConfig:
         r, v, rs = fld.classification_generator_from_indexes(indeces);
         r1, v1, rs1 = fld.classification_generator_from_indexes(vindeces);
         try:
-            ec = ExecutionConfig(fold=fold, stage=0, dr=os.path.dirname(self.path))
+            ec = ExecutionConfig(fold=fold, stage=stage, dr=os.path.dirname(self.path))
             cb=[]+self.callbacks
             cb.append(keras.callbacks.CSVLogger(ec.classifier_metricsPath()))
             cb.append(keras.callbacks.ModelCheckpoint(ec.classifier_weightsPath(), save_best_only=True, monitor="val_binary_accuracy",verbose=1))
@@ -181,6 +182,33 @@ class PipelineConfig:
                 z.segmentation_maps_aug = [imgaug.SegmentationMapOnImage(x, x.shape) for x in res];
                 yield z
 
+    def predict_on_directory_with_model(self, mdl,path, limit=-1, batchSize=32,ttflips=False):
+
+        ta = self.transformAugmentor()
+        with tqdm.tqdm(total=len(os.listdir(path)), unit="files", desc="classifying positive  images from " + path) as pbar:
+            for v in datasets.DirectoryDataSet(path, batchSize).generator(limit):
+                for z in ta.augment_batches([v]):
+                    o1=np.array(z.images_aug);
+                    res = mdl.predict(o1)
+                    if ttflips:
+                        another=imgaug.augmenters.Fliplr(1.0).augment_images(z.images_aug);
+                        res1= mdl.predict(np.array(another))
+
+
+                        another1 = imgaug.augmenters.Flipud(1.0).augment_images(z.images_aug);
+                        res2 = mdl.predict(np.array(another1))
+
+
+                        seq=imgaug.augmenters.Sequential([imgaug.augmenters.Fliplr(1.0), imgaug.augmenters.Flipud(1.0)])
+                        another2 = seq.augment_images(z.images_aug);
+                        res3 = mdl.predict(np.array(another2))
+
+
+                        res=(res+res1+res2+res3)/4.0
+                    z.predictions = res;
+                    pbar.update(batchSize)
+                    yield z
+
     def predict_to_directory(self, spath, tpath,fold=0, stage=0, limit=-1, batchSize=32):
         ensure(tpath)
         with tqdm.tqdm(total=len(os.listdir(spath)),unit="files",desc="segmentation of images from "+spath+" to "+tpath) as pbar:
@@ -240,7 +268,9 @@ class PipelineConfig:
         transforms.append(imgaug.augmenters.Scale({"height": self.shape[0], "width": self.shape[1]}))
         return imgaug.augmenters.Sequential(transforms)
 
-    def compile(self, net: keras.Model, opt: keras.optimizers.Optimizer, loss=None):
+    def compile(self, net: keras.Model, opt: keras.optimizers.Optimizer, loss:str=None):
+        if loss is not None and "+" in loss:
+            loss=composite.ps(loss)
 
         if (loss=='lovasz_loss' and isinstance(net.layers[-1],keras.layers.Activation)):
             net=keras.Model(net.layers[0].input,net.layers[-1].input);
