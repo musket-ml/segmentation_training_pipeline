@@ -251,7 +251,7 @@ images, we support this with `BackgroundReplacer` augmenter:
 augmentation:
   BackgroundReplacer:
     path: D:/bg #path to folder with backgrounds
-    rate: 0.5 #percent of original backgrounds to preserve
+    rate: 0.5 #fraction of original backgrounds to preserve
 
 ```
 
