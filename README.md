@@ -10,6 +10,7 @@
       - [Composite losses](#composite-losses)
       - [Cyclical learning rates](#cyclical-learning-rates)
       - [LR Finder](#lr-finder)      
+      - [Background Augmenter](#background-augmenter)
     + [Using trained model](#using-trained-model)
       - [Ansembling predictions and test time augmentation](#ansembling-predictions)
     + [Custom evaluation code](#custom-evaluation-code)
@@ -201,6 +202,31 @@ will result in loss function which is composed from `binary_crossentropy` and  `
 
 #### LR Finder
 
+[Estimating optimal learning rate for your model](https://arxiv.org/abs/1506.01186) is an important thing, we support this by using slightly changed 
+version of [Pavel Surmenok - Keras LR Finder](https://github.com/surmenok/keras_lr_finder)
+
+```python
+cfg= segmentation.parse("people.yaml")
+ds=SimplePNGMaskDataSet("./train","./train_mask")
+finder=cfg.lr_find(ds,start_lr=0.00001,end_lr=1,epochs=5)
+finder.plot_loss(n_skip_beginning=20, n_skip_end=5)
+plt.show()
+finder.plot_loss_change(sma=20, n_skip_beginning=20, n_skip_end=5, y_lim=(-0.01, 0.01))
+plt.show()
+```
+
+#### Background Augmenter
+
+One interesting augentation option when doing background removal task is replacing backgrounds with random 
+images, we support this with `BackgroundReplacer` augmenter:
+
+```yaml
+augmentation:
+  BackgroundReplacer:
+    path: D:/bg #path to folder with backgrounds
+    rate: 0.5 #percent of original backgrounds to preserve
+
+```
 
 ### Using trained model
 

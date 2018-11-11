@@ -5,12 +5,15 @@ import tqdm
 from segmentation_models.utils import set_trainable
 import keras.optimizers as opt
 import keras
+import keras.backend as K
+from keras.callbacks import  LambdaCallback
 from segmentation_pipeline.impl import datasets, configloader
 import os
 import yaml
 import segmentation_pipeline.impl.losses
 import segmentation_pipeline.impl.focal_loss
 import imageio
+from  segmentation_pipeline.impl.lr_finder import LRFinder
 keras.utils.get_custom_objects()["dice"]= segmentation_pipeline.impl.losses.dice_coef
 keras.utils.get_custom_objects()["dice_bool"]= segmentation_pipeline.impl.losses.dice
 keras.utils.get_custom_objects()["iou"]= segmentation_pipeline.impl.losses.iou_coef
@@ -86,6 +89,28 @@ class PipelineConfig:
                  "folds": foldsToExecute},
                 f)
 
+    def lr_find(self, d, foldsToExecute=None,stage=0,subsample=1.0,start_lr=0.000001,end_lr=1.0,epochs=5):
+        dn = os.path.dirname(self.path)
+        if os.path.exists(os.path.join(dn, "summary.yaml")):
+            raise ValueError("Experiment is already finished!!!!")
+        folds = self.kfold(d)
+
+        for i in range(len(folds.folds)):
+            if foldsToExecute:
+                if not i in foldsToExecute:
+                    continue
+            model = self.createAndCompile()
+            for s in range(0, len(self.stages)):
+                if s<stage:
+                    st: Stage = self.stages[s]
+                    ec = ExecutionConfig(fold=i, stage=s, subsample=subsample, dr=os.path.dirname(self.path))
+                    if os.path.exists(ec.weightsPath()):
+                        model.load_weights(ec.weightsPath())
+                    continue
+                st: Stage = self.stages[s]
+                ec = ExecutionConfig(fold=i, stage=s, subsample=subsample, dr=os.path.dirname(self.path))
+                return st.lr_find(folds, model, ec,start_lr,end_lr,epochs)
+
 
     def fit_classifier(self,d,fold:int,model:keras.Model,batchSize=None,stage=0):
         if batchSize==None:
@@ -132,9 +157,16 @@ class PipelineConfig:
         self.primary_metric = "val_binary_accuracy"
         self.primary_metric_mode = "auto"
         self.dataset_augmenter=None
+        self.bgr=None
+        self.rate=0.5
         for v in atrs:
             val = atrs[v];
-            if v == 'augmentation':
+            if v == 'augmentation' and val is not None:
+                if "BackgroundReplacer" in val:
+                    bgr=val["BackgroundReplacer"]
+                    self.bgr=datasets.Backgrounds(bgr["path"])
+                    self.bgr.rate = bgr["rate"]
+                    del val["BackgroundReplacer"]
                 val = configloader.parse("augmenters", val)
             if v == 'transforms':
                 val = configloader.parse("augmenters", val)
@@ -325,6 +357,8 @@ class PipelineConfig:
         if indeces is None: indeces=range(0,len(ds))
         transforms = [] + self.transforms
         transforms.append(imgaug.augmenters.Scale({"height": self.shape[0], "width": self.shape[1]}))
+        if self.bgr is not None:
+            ds=datasets.WithBackgrounds(ds,self.bgr)
         kf= datasets.KFoldedDataSet(ds, indeces, self.augmentation, transforms, batchSize=batch)
         if self.dataset_augmenter is not None:
             args = dict(self.dataset_augmenter)
@@ -393,6 +427,23 @@ class Stage:
             self.lr = dict['lr']
         else:
             self.lr = None
+
+    def lr_find(self, kf: datasets.KFoldedDataSet, model: keras.Model, ec: ExecutionConfig,start_lr,end_lr,epochs):
+        if 'unfreeze_encoder' in self.dict and self.dict['unfreeze_encoder']:
+            set_trainable(model)
+        if self.loss or self.lr:
+            self.cfg.compile(model, self.cfg.createOptimizer(self.lr), self.loss)
+        cb = [] + self.cfg.callbacks
+        if self.initial_weights is not None:
+            model.load_weights(self.initial_weights)
+        ll=LRFinder(model)
+        num_batches=kf.numBatches(ec.fold,self.negatives,ec.subsample)*epochs
+        ll.lr_mult = (float(end_lr) / float(start_lr)) ** (float(1) / float(num_batches))
+        K.set_value(model.optimizer.lr, start_lr)
+        callback = LambdaCallback(on_batch_end=lambda batch, logs: ll.on_batch_end(batch, logs))
+        cb.append(callback)
+        kf.trainOnFold(ec.fold, model, cb,epochs, self.negatives, subsample=ec.subsample,validation_negatives=self.validation_negatives)
+        return ll
 
     def execute(self, kf: datasets.KFoldedDataSet, model: keras.Model, ec: ExecutionConfig):
         if 'unfreeze_encoder' in self.dict and self.dict['unfreeze_encoder']:

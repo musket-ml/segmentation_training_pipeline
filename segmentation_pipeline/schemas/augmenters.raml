@@ -41,6 +41,11 @@ types:
 
 ### Concrete Augmenters starts here
   Add: RangedPerChannel
+  BackgroundReplacer:
+    type: Augmenter
+    properties:
+      path: string
+      rate: number
   AddElementwise: RangedPerChannel
   Multiply: RangedPerChannel
   MultiplyElementwise: RangedPerChannel

@@ -45,18 +45,24 @@ class CropAndSplit:
         self.parts=n
         self.lastPos=None
 
+
+    def isPositive(self, item):
+        pos = item // (self.parts * self.parts);
+        return self.ds.isPositive(pos)
+
     def __getitem__(self, item):
-        pos=item//self.parts*self.parts;
+        pos=item//(self.parts*self.parts);
         off=item%(self.parts*self.parts)
         if pos==self.lastPos:
             dm=self.lastImage
         else:
-            dm=self.ds[item]
+            dm=self.ds[pos]
             self.lastImage=dm
         row=off//self.parts
         col=off%self.parts
-        x,y=dm
-        return self.crop(row,col,x),self.crop(row,col,x)
+        x,y=dm.x,dm.y
+        x1,y1= self.crop(row,col,x),self.crop(row,col,y)
+        return PredictionItem(dm.id,x1,y1)
 
     def crop(self,x,y,image):
         z=image.shape[0]//self.parts
@@ -65,13 +71,14 @@ class CropAndSplit:
     def __len__(self):
         return len(self.ds)*self.parts*self.parts
 
-ds = SegmentationRLE ("F:/all/train_ship_segmentations.csv","D:/train_ships/train")
+
 from skimage.morphology import binary_opening, disk
 import skimage
 import numpy as np
 import keras
+import matplotlib.pyplot as plt
 def main():
-
+    ds = SegmentationRLE("F:/all/train_ship_segmentations.csv", "D:/train_ships/train")
     #segmentation.execute(ds, "ship_config.yaml")
     # cfg=segmentation.parse("fpn/ship_config.yaml")
     # cfg.fit(ds)
@@ -79,8 +86,35 @@ def main():
     # cfg.fit(ds)
     # cfg = segmentation.parse("psp/ship_config.yaml")
     # cfg.fit(ds)
-    cfg = segmentation.parse("fpn3/ship_config.yaml")
-    cfg.fit(ds,foldsToExecute=[2],start_from_stage=3)
+    ds0=ds
+    cfg = segmentation.parse("fpn_full/ship_config.yaml")
+    ds=CropAndSplit(ds,3)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(121)
+    ax.imshow(ds0[2].x)
+
+    # ax1 = fig.add_subplot(255)
+    # ax1.imshow(ds[18].x)
+    #
+    # ax2 = fig.add_subplot(256)
+    # ax2.imshow(ds[19].x)
+    #
+    # ax3 = fig.add_subplot(254)
+    # ax3.imshow(ds[20].x)
+    #
+    # ax4 = fig.add_subplot(255)
+    # ax4.imshow(ds[21].x)
+    #
+    # ax5 = fig.add_subplot(256)
+    # ax5.imshow(ds[22].x)
+    #
+    # ax5 = fig.add_subplot(257)
+    # ax5.imshow(ds[23].x)
+    #
+    # plt.show()
+
+    cfg.fit(ds,foldsToExecute=[2])
 
     cfg0 = segmentation.parse("./fpn-resnext2/ship_config.yaml")
     mdl=cfg0.createAndCompileClassifier()

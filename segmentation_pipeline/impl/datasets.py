@@ -12,6 +12,8 @@ import random
 import imageio
 import numpy as np
 import traceback
+import random
+import cv2 as cv
 
 class PredictionItem:
     def __init__(self, path,x,y):
@@ -20,10 +22,11 @@ class PredictionItem:
         self.id=path;
 
 class DataSetLoader:
-    def __init__(self,dataset,indeces,batchSize=16):
+    def __init__(self,dataset,indeces,batchSize=16,isTrain=True):
         self.dataset = dataset
         self.batchSize = batchSize
         self.indeces = indeces
+        self.isTrain=isTrain
 
     def generator(self):
         i = 0;
@@ -35,7 +38,10 @@ class DataSetLoader:
                 i = 0
             id=""
             try:
-                item = self.dataset[self.indeces[i]]
+                if hasattr(self.dataset,"item"):
+
+                    item = self.dataset.item(self.indeces[i],self.isTrain)
+                else: item = self.dataset[self.indeces[i]]
                 x, y = item.x, item.y
                 if isinstance(item,PredictionItem):
                     id=item.id
@@ -65,7 +71,9 @@ class DataSetLoader:
             if (i==len(self.indeces)):
                 i=0;
             try:
-                item=self.dataset[self.indeces[i]]
+                if hasattr(self.dataset,"item"):
+                    item = self.dataset.item(self.indeces[i],self.isTrain)
+                else: item=self.dataset[self.indeces[i]]
                 x,y=item.x,item.y
             except:
                 traceback.print_exc()
@@ -141,7 +149,45 @@ class DirectoryDataSet:
         if len(bx)>0:
             yield imgaug.Batch(images=bx,data=ps)
         return
+class Backgrounds:
+    def __init__(self,path):
+        self.path=path;
+        self.rate=0.5
+        self.options=[os.path.join(path,x) for x in os.listdir(self.path)]
 
+    def next(self,i,i2):
+        fl=random.choice(self.options)
+        im=imageio.imread(fl)
+        r=cv.resize(im,(i.shape[1],i.shape[0]))
+        i2=i2!=0
+        i2=np.squeeze(i2)
+        r[i2] = i[i2]
+        return r;
+
+    def augment_item(self,i):
+        r=self.next(i.x,i.y)
+        return PredictionItem(i.id,r,i.y)
+
+class WithBackgrounds:
+    def __init__(self, ds,bg):
+        self.ds=ds
+        self.bg=bg
+        self.rate=bg.rate
+
+    def __len__(self):
+        return len(self.ds)
+
+    def item(self,item,isTrain):
+        if not isTrain:
+            return self.ds[item]
+
+        return self[item]
+
+    def __getitem__(self, item):
+        i=self.ds[item]
+        if random.random()>self.rate:
+            return self.bg.augment_item(i)
+        return i
 class SimplePNGMaskDataSet:
     def __init__(self, path, mask):
         self.path = path;
@@ -195,12 +241,12 @@ class KFoldedDataSet:
 
     def load(self,foldNum, isTrain=True,negatives="all",ln=16):
         indexes = self.sampledIndexes(foldNum, isTrain, negatives)
-        samples = DataSetLoader(self.ds, indexes, ln).load()
+        samples = DataSetLoader(self.ds, indexes, ln,isTrain=isTrain).load()
         for v in self.augmentor(isTrain).augment_batches([samples]):
             return v
 
     def generator_from_indexes(self, indexes,isTrain=True,returnBatch=False):
-        m = DataSetLoader(self.ds, indexes, self.batchSize).generator
+        m = DataSetLoader(self.ds, indexes, self.batchSize,isTrain=isTrain).generator
         aug = self.augmentor(isTrain)
         l = imgaug.imgaug.BatchLoader(m)
         g = imgaug.imgaug.BackgroundAugmenter(l, augseq=aug,queue_size=AUGMENTER_QUEUE_LIMIT)
@@ -218,7 +264,7 @@ class KFoldedDataSet:
         return l,g,r
 
     def classification_generator_from_indexes(self, indexes,isTrain=True):
-        m = DataSetLoader(self.ds, indexes, self.batchSize).generator
+        m = DataSetLoader(self.ds, indexes, self.batchSize,isTrain=isTrain).generator
         aug = self.augmentor(isTrain)
         l = imgaug.imgaug.BatchLoader(m)
         g = imgaug.imgaug.BackgroundAugmenter(l, augseq=aug,queue_size=AUGMENTER_QUEUE_LIMIT)
@@ -270,6 +316,10 @@ class KFoldedDataSet:
             random.shuffle(r)
             return r;
         return indexes
+
+    def numBatches(self,fold,negatives,subsample):
+        train_indexes = self.sampledIndexes(fold, True, negatives)
+        return len(train_indexes)//(round(subsample*self.batchSize))
 
     def trainOnFold(self,fold:int,model:keras.Model,callbacks=[],numEpochs:int=100,negatives="all",
                     subsample=1.0,validation_negatives=None):
