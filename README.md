@@ -133,9 +133,6 @@ class SegmentationRLE:
                               rle.masks_as_image(pixels) > 0.5)
 
 
-    def get_masks(self,id):
-        pixels = self.ship_groups.get_group(id)["EncodedPixels"]
-        return rle.masks_as_images(pixels)
     
 ```         
 

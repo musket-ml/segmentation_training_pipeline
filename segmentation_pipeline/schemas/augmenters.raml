@@ -53,6 +53,17 @@ types:
   Flipud: WithChance
   Invert: WithChance
   Sequential: ControlFlow
+  Affine:
+    type: Augmenter
+    properties:
+      rotate: number[]
+      scale: number[]
+      shear: number[]
+      translate_percent:
+         type: object
+         properties:
+           x: number[]
+           y: number[]
   OneOf: ControlFlow
   Pad:
     type: Augmenter
