@@ -13,6 +13,7 @@ import yaml
 import segmentation_pipeline.impl.losses
 import segmentation_pipeline.impl.focal_loss
 import imageio
+from segmentation_pipeline.impl.clr_callback import  CyclicLR
 from  segmentation_pipeline.impl.lr_finder import LRFinder
 keras.utils.get_custom_objects()["dice"]= segmentation_pipeline.impl.losses.dice_coef
 keras.utils.get_custom_objects()["dice_bool"]= segmentation_pipeline.impl.losses.dice
@@ -171,7 +172,16 @@ class PipelineConfig:
             if v == 'transforms':
                 val = configloader.parse("augmenters", val)
             if v == 'callbacks':
+                cs=[]
+                if "CyclicLR" in val and val is not None:
+                    bgr = val["CyclicLR"]
+                    cs.append(CyclicLR(**bgr))
+                    #self.bgr = datasets.Backgrounds(bgr["path"])
+                    #self.bgr.rate = bgr["rate"]
+                    del val["CyclicLR"]
                 val = configloader.parse("callbacks", val)
+                if val is not None:
+                    val=val+cs
             if v == 'stages':
                 val = [Stage(x, self) for x in val]
             setattr(self, v, val)

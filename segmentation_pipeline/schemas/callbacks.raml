@@ -31,3 +31,18 @@ types:
       cooldown:
         type: integer
         minimum: 0
+  CyclicLR:
+    type: Callback
+    properties:
+      base_lr: number
+      max_lr: number
+      mode:
+        type: string
+        enum: [triangular,triangular2,exp_range]
+      gamma:
+        type: number
+        minimum: 0
+        maximum: 1
+      step_size:
+        type: integer
+        minimum: 0

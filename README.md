@@ -200,6 +200,29 @@ will result in loss function which is composed from `binary_crossentropy` and  `
 
 #### Cyclical learning rates
 
+![Example](https://github.com/bckenstler/CLR/blob/master/images/triangularDiag.png?raw=true)
+
+As told in [Cyclical learning rates for training neural networks](https://arxiv.org/abs/1506.01186) CLR policies can provide quicker converge for some neural network tasks and architectures 
+
+![Example2](https://github.com/bckenstler/CLR/raw/master/images/cifar.png)
+
+We support them by adopting Brad Kenstler [CLR callback](https://github.com/bckenstler/CLR) for Keras
+
+If you want to use them just add `CyclicLR` in your experiment configuration file as shown in this example: 
+
+```yaml
+callbacks:
+  EarlyStopping:
+    patience: 40
+    monitor: val_binary_accuracy
+    verbose: 1
+  CyclicLR:
+     base_lr: 0.0001
+     max_lr: 0.01
+     mode: triangular2
+     step_size: 300
+```
+
 #### LR Finder
 
 [Estimating optimal learning rate for your model](https://arxiv.org/abs/1506.01186) is an important thing, we support this by using slightly changed 
@@ -214,7 +237,11 @@ plt.show()
 finder.plot_loss_change(sma=20, n_skip_beginning=20, n_skip_end=5, y_lim=(-0.01, 0.01))
 plt.show()
 ```
+will result in this couple of helpful images: 
 
+![image](https://camo.githubusercontent.com/b41aeaff00fb7b214b5eb2e5c151e7e353a7263e/68747470733a2f2f63646e2d696d616765732d312e6d656469756d2e636f6d2f6d61782f313630302f312a48566a5f344c57656d6a764f57762d63514f397939672e706e67)
+
+![image](https://camo.githubusercontent.com/834996d32bbd2edf7435c5e105b53a6b447ef083/68747470733a2f2f63646e2d696d616765732d312e6d656469756d2e636f6d2f6d61782f313630302f312a38376d4b715f586f6d59794a4532396c39314b3064772e706e67)
 #### Background Augmenter
 
 One interesting augentation option when doing background removal task is replacing backgrounds with random 
