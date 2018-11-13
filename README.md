@@ -42,6 +42,7 @@ execution of following two commands
 pip install git+https://github.com/aleju/imgaug
 pip install segmentation_pipeline
 ```
+*Note: this package requires python 3.6*
 
 ## Usage guide
 
@@ -382,7 +383,19 @@ Okey, we have done a lot of experiments and now we need to compare the results, 
 contains [script](segmentation_pipeline/analize.py) which may be used to analyze folder containing sub folders
 with experiment configurations and results. This script gathers all configurations diffs them by doing structural diff, then 
 for each configuration if averages metrics all folds and  generates csv file containing metrics and parameters that
-was actually changed in your experiment like in the following [example](report.csv) 
+was actually changed in your experiment like in the following [example](report.csv)
+
+This script accepts following arguments:
+
+ - inputFolder - root folder to search for experiments configurations and results
+ - output - file to store aggregated metrics
+ - onlyMetric - if you specify this option all other metrics will not be written in the report file
+ - sortBy - metric that should be used to sort results 
+
+Example: 
+```commandline
+python analize.py --inputFolder ./experiments --output ./result.py
+``` 
  
 ## What is supported?
 
