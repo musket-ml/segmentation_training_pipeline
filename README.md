@@ -274,7 +274,7 @@ callbacks:
 version of [Pavel Surmenok - Keras LR Finder](https://github.com/surmenok/keras_lr_finder)
 
 ```python
-cfg= segmentation.parse("people.yaml")
+cfg= segmentation.parse(people-1.yaml)
 ds=SimplePNGMaskDataSet("./train","./train_mask")
 finder=cfg.lr_find(ds,start_lr=0.00001,end_lr=1,epochs=5)
 finder.plot_loss(n_skip_beginning=20, n_skip_end=5)
@@ -464,3 +464,5 @@ where `MyUnet` is a function that accepts architecture parameters as arguments a
 of keras model
 
 ## Examples
+
+[Training background removal task(Pics Art Hackaton) in google collab](https://colab.research.google.com/drive/1HtJLwoI_93m8pnRkK4u8JiFwv33L9Pil)

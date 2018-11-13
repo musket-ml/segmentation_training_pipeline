@@ -11,3 +11,4 @@ h5py
 imgaug
 segmentation_models
 IPython[all]
+shapely

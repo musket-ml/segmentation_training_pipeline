@@ -173,3 +173,4 @@ def lovasz_loss(y_true, y_pred):
     logits = y_pred #Jiaxin
     loss = lovasz_hinge(logits, y_true, per_image = True, ignore = None)
     return loss
+

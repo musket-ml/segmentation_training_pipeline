@@ -21,6 +21,7 @@ keras.utils.get_custom_objects()["iou"]= segmentation_pipeline.impl.losses.iou_c
 keras.utils.get_custom_objects()["iot"]= segmentation_pipeline.impl.losses.iot_coef
 
 keras.utils.get_custom_objects()["lovasz_loss"]= segmentation_pipeline.impl.losses.lovasz_loss
+#keras.utils.get_custom_objects()["lovasz_hinge"]= segmentation_pipeline.impl.losses.lovasz_hinge_flat()
 keras.utils.get_custom_objects()["iou_loss"]= segmentation_pipeline.impl.losses.iou_coef_loss
 keras.utils.get_custom_objects()["dice_loss"]= segmentation_pipeline.impl.losses.dice_coef_loss
 keras.utils.get_custom_objects()["jaccard_loss"]= segmentation_pipeline.impl.losses.jaccard_distance_loss
@@ -346,7 +347,7 @@ class PipelineConfig:
 
     def predict_in_directory(self, spath, fold, stage,cb, data,limit=-1, batchSize=32,ttflips=False):
 
-        with tqdm.tqdm(total=len(self.dir_list(spath)), unit="files", desc="segmentation of images from " + spath) as pbar:
+        with tqdm.tqdm(total=len(self.dir_list(spath)), unit="files", desc="segmentation of images from " + str(spath)) as pbar:
             for v in self.predict_on_directory(spath,fold=fold, stage=stage, limit=limit, batchSize=batchSize,ttflips=ttflips):
                 b:imgaug.Batch=v;
                 for i in range(len(b.data)):

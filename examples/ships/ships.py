@@ -96,7 +96,7 @@ def main():
     goodC=0;
     for v in cfg0.predict_on_directory_with_model(mdl,"F:/all/test_v2",ttflips=True):
         for i in range(0,len(v.data)):
-            if (v.predictions[i]>0.8):
+            if (v.predictions[i]>0.5):
                 goodC=goodC+1;
 
             exists[v.data[i]]=v.predictions[i]
@@ -113,13 +113,13 @@ def main():
     def onPredict(id, img, d):
         exists=d["exists"]
         out_pred_rows = d["pred"]
-        if exists[id]<0.8:
+        if exists[id]<0.5:
             out_pred_rows += [{'ImageId': id, 'EncodedPixels': None}]
             return
 
         good = d["good"]
         num = d["num"]
-        cur_seg = binary_opening(img.arr > 0.53, np.expand_dims(disk(2), -1))
+        cur_seg = binary_opening(img.arr > 0.5, np.expand_dims(disk(2), -1))
         cur_rles = rle.multi_rle_encode(cur_seg)
         if len(cur_rles) > 0:
             good = good + 1;
@@ -133,8 +133,14 @@ def main():
 
         pass
     out_pred_rows=[]
+    toPredict=[]
+    for id in exists:
+        if exists[id]<0.5:
+            out_pred_rows += [{'ImageId': id, 'EncodedPixels': None}]
+        else:
+            toPredict.append(id)
     d = {"pred": out_pred_rows, "good": 0, "num": 0,"exists":exists}
-    cfg.predict_in_directory("F:/all/test_v2",2,2,onPredict,d,ttflips=True)
+    cfg.predict_in_directory(ConstrainedDirectory("F:/all/test_v2",toPredict),2,1,onPredict,d,ttflips=True)
     submission_df = pd.DataFrame(out_pred_rows)[['ImageId', 'EncodedPixels']]
     submission_df.to_csv('mySubmission.csv', index=False)
     print("Good:"+str(d["good"]))

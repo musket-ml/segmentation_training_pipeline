@@ -1,7 +1,7 @@
 from setuptools import setup
 import setuptools
 setup(name='segmentation_pipeline',
-      version='0.19',
+      version='0.20',
       description='Declaraqtively configured pipeline for image segmentation',
       url='https://github.com/petrochenko-pavel-a/segmentation_training_pipeline',
       author='Petrochenko Pavel',
@@ -13,5 +13,6 @@ setup(name='segmentation_pipeline',
       install_requires=["numpy", "scipy","Pillow", "cython","matplotlib", "scikit-image","tensorflow>=1.3.0","keras>=2.2.4","imageio",
 "opencv-python",
 "h5py",
-"segmentation_models"],
+"segmentation_models",
+"shapely"],
       zip_safe=False)
