@@ -123,7 +123,7 @@ augmentation:
     shear: [-16, 16] #random shears on -16,16 degrees
 ```
 
-### Freezing/Unfreezing encoder
+#### Freezing/Unfreezing encoder
 
 Freezing encoder is oftenly used with transfer learning. If you want to start with frozen encoder just add
 
