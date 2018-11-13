@@ -107,12 +107,24 @@ def draw_test_batch(batch,path):
     grid_image = imgaug.draw_grid(cells, cols=3)
     imageio.imwrite(path, grid_image)
 
+class ConstrainedDirectory:
+    def __init__(self,path,filters):
+        self.path=path;
+        self.filters=filters
+
+    def __repr__(self):
+        return self.path+" (with filter)"
 
 class DirectoryDataSet:
 
     def __init__(self,imgPath,batchSize=32):
-        self.imgPath=imgPath;
-        self.ids=os.listdir(imgPath)
+
+        if isinstance(imgPath,ConstrainedDirectory):
+            self.imgPath=imgPath.path
+            self.ids = imgPath.filters
+        else:
+            self.imgPath = imgPath;
+            self.ids=os.listdir(imgPath)
         self.batchSize=batchSize
         pass
 

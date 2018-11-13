@@ -1,6 +1,6 @@
 
 import pandas as pd
-from segmentation_pipeline.impl.datasets import PredictionItem
+from segmentation_pipeline.impl.datasets import PredictionItem,ConstrainedDirectory
 import os
 from segmentation_pipeline.impl import rle
 import imageio
@@ -39,37 +39,8 @@ class SegmentationRLE:
     def __len__(self):
         return len(self.masks)
 
-class CropAndSplit:
-    def __init__(self,orig,n):
-        self.ds=orig
-        self.parts=n
-        self.lastPos=None
 
 
-    def isPositive(self, item):
-        pos = item // (self.parts * self.parts);
-        return self.ds.isPositive(pos)
-
-    def __getitem__(self, item):
-        pos=item//(self.parts*self.parts);
-        off=item%(self.parts*self.parts)
-        if pos==self.lastPos:
-            dm=self.lastImage
-        else:
-            dm=self.ds[pos]
-            self.lastImage=dm
-        row=off//self.parts
-        col=off%self.parts
-        x,y=dm.x,dm.y
-        x1,y1= self.crop(row,col,x),self.crop(row,col,y)
-        return PredictionItem(dm.id,x1,y1)
-
-    def crop(self,x,y,image):
-        z=image.shape[0]//self.parts
-        return image[z*x:z*(x+1),z*y:z*(y+1), :]
-
-    def __len__(self):
-        return len(self.ds)*self.parts*self.parts
 
 
 from skimage.morphology import binary_opening, disk
@@ -88,11 +59,13 @@ def main():
     # cfg.fit(ds)
     ds0=ds
     cfg = segmentation.parse("fpn_full/ship_config.yaml")
-    ds=CropAndSplit(ds,3)
 
-    fig = plt.figure()
-    ax = fig.add_subplot(121)
-    ax.imshow(ds0[2].x)
+
+    #cfg.predict_to_directory(ConstrainedDirectory("F:/all/test_v2",["00dc34840.jpg"]),"F:/all/test_v2_seg",fold=2,stage=2)
+    # exit(0)
+    # fig = plt.figure()
+    # ax = fig.add_subplot(121)
+    # ax.imshow(ds0[2].x)
 
     # ax1 = fig.add_subplot(255)
     # ax1.imshow(ds[18].x)
@@ -114,7 +87,7 @@ def main():
     #
     # plt.show()
 
-    cfg.fit(ds,foldsToExecute=[2])
+    #cfg.fit(ds,foldsToExecute=[2],start_from_stage=2)
 
     cfg0 = segmentation.parse("./fpn-resnext2/ship_config.yaml")
     mdl=cfg0.createAndCompileClassifier()

@@ -47,7 +47,9 @@ types:
       classes:
         type: integer
         minimum: 1
-
+      crops?:
+        type: integer
+        (meta.custom): true
       activation:
         enum: [ sigmoid, softmax ]
       architecture:

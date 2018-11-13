@@ -4,13 +4,16 @@
   * [Installation](#installation)
   * [Usage guide](#usage-guide)
     + [Training a model](#training-a-model)
-      - [Custom datasets](#custom-datasets)
+      - [Image/Mask Augmentations](#augmentation)
+      - [Freezing/Unfreezing encoder](#freezing/unfreezing-encoder)
+      - [Custom datasets](#custom-datasets)      
       - [Balancing your data](#balancing-your-data)
       - [Multistage training](#multistage-training)
       - [Composite losses](#composite-losses)
       - [Cyclical learning rates](#cyclical-learning-rates)
       - [LR Finder](#lr-finder)      
       - [Background Augmenter](#background-augmenter)
+      - [Training on crops](#training-on-crops)
     + [Using trained model](#using-trained-model)
       - [Ansembling predictions and test time augmentation](#ansembling-predictions)
     + [Custom evaluation code](#custom-evaluation-code)
@@ -33,7 +36,10 @@ So I decided to extract repetitive things into framework that will work at least
 
 ## Installation
 
+At this moment library requires latest version of imgaug which is not yet published to pip, so installation requires
+execution of following two commands 
 ```
+pip install git+https://github.com/aleju/imgaug
 pip install segmentation_pipeline
 ```
 
@@ -98,6 +104,47 @@ What this code actually does behind of the scenes?
 -  it takes care about model checkpointing, generates example image/mask/segmentation triples, collects training metrics. All this data will
    be stored in the folders just near your `config.yaml`
 -  All you folds are initialized from fixed default seed, so different experiments will use exactly same train/validation splits     
+
+#### Image/Mask Augmentations
+
+Framework uses awesome [imgaug](https://github.com/aleju/imgaug) library for augmentation, so only thing that is needed
+is to configure your augmentation process in declarative form like in the following example:
+ 
+```yaml
+augmentation:  
+  Fliplr: 0.5
+  Flipud: 0.5
+  Affine:
+    scale: [0.8, 1.5] #random scalings
+    translate_percent:
+      x: [-0.2,0.2] #random shifts
+      y: [-0.2,0.2]
+    rotate: [-16, 16] #random rotations on -16,16 degrees
+    shear: [-16, 16] #random shears on -16,16 degrees
+```
+
+### Freezing/Unfreezing encoder
+
+Freezing encoder is oftenly used with transfer learning. If you want to start with frozen encoder just add
+
+```
+freeze_encoder: true
+stages:
+  - epochs: 10 #Let's go for 10 epochs with frozen encoder
+  
+  - epochs: 100 #Now lets go for 100 epochs with trainable encoder
+    unfreeze_encoder: true  
+```
+
+in your experiments configuration, then on some stage configuration you just add:
+
+```yaml
+unfreeze_encoder: true
+```
+to stage settings.
+
+
+*Note: This option is not supported for DeeplabV3 architecture.*
 
 #### Custom datasets
 
@@ -252,6 +299,22 @@ augmentation:
 
 ```
 
+#### Training on crops
+
+Sometimes your images are to large to train model with them, in this case you probably want to train model on crops. All
+that you need to do in this case is to specify number of splits per axis. For example following lines in config 
+
+```yaml
+shape: [768, 768, 3]
+crops: 3
+``` 
+will lead to splitting each image/mask on 9 cells (3 horizontal splits and 3 vertical splits) and training model on this splits.
+augmentations will be run separately on each cell.
+
+
+During prediction time, your images will be splitten on this cells, prediction will be executed on each cell, and then results
+will be assembled in large final mask. So the whole process of cropping will be invisible from a consumer perspective.   
+
 ### Using trained model
 
 Okey, our model is trained, now we need to actually do image segmenation, let's say that we need to run image segmentation on
@@ -384,7 +447,7 @@ for example:
 ```python
 segmentation.custom.models['MyUnet']=MyUnet 
 ```
-where `MyUnet` is a function that accepts architecture parameters as keyword arguments and returns an instance
+where `MyUnet` is a function that accepts architecture parameters as arguments and returns an instance
 of keras model
 
 ## Examples

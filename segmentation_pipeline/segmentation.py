@@ -60,9 +60,73 @@ class AnsembleModel:
             rm=rm+res[r];
         return rm/float(len(self.models));
 
+def crop(x, y,x1,y1, image):
+    return image[:,y:y1, x:x1, :]
+
+def addCrop(image,x,y,x1,y1,image1):
+    image[:,y:y1, x:x1, :]+=image1
+
+class BatchCrop:
+
+    def __init__(self,parts,mdl):
+        self.parts=parts
+        self.mdl=mdl
+
+    def predict(self,images):
+        cell_width=images.shape[2]/self.parts
+        cell_height = images.shape[1]/self.parts
+        rs=None
+        for i in range(self.parts):
+            for j in range(self.parts):
+                x=round(i*cell_width)
+                y=round(j*cell_height)
+                x1=x+round(cell_width)
+                y1=y+round(cell_height)
+                predCrop=self.mdl.predict(crop(x,y,x1,y1,images));
+                if rs is None:
+                    rs=np.zeros((images.shape[0],images.shape[1],images.shape[2],predCrop.shape[-1]),dtype=np.float32)
+                addCrop(rs,x,y,x1,y1,predCrop)
+
+        return rs
+
+class CropAndSplit:
+    def __init__(self,orig,n):
+        self.ds=orig
+        self.parts=n
+        self.lastPos=None
+
+
+    def isPositive(self, item):
+        pos = item // (self.parts * self.parts);
+        return self.ds.isPositive(pos)
+
+    def __getitem__(self, item):
+        pos=item//(self.parts*self.parts);
+        off=item%(self.parts*self.parts)
+        if pos==self.lastPos:
+            dm=self.lastImage
+        else:
+            dm=self.ds[pos]
+            self.lastImage=dm
+        row=off//self.parts
+        col=off%self.parts
+        x,y=dm.x,dm.y
+        x1,y1= self.crop(row,col,x),self.crop(row,col,y)
+        return datasets.PredictionItem(dm.id,x1,y1)
+
+    def crop(self,y,x,image):
+        h=image.shape[0]//self.parts
+        w = image.shape[1] // self.parts
+        return image[h*y:h*(y+1),w*x:w*(x+1), :]
+
+    def __len__(self):
+        return len(self.ds)*self.parts*self.parts
+
 class PipelineConfig:
 
     def fit(self, d, subsample=1.0, foldsToExecute=None, start_from_stage=0):
+        if self.crops is not None:
+            d=CropAndSplit(d,self.crops)
         dn = os.path.dirname(self.path)
         if os.path.exists(os.path.join(dn, "summary.yaml")):
             raise ValueError("Experiment is already finished!!!!")
@@ -75,10 +139,7 @@ class PipelineConfig:
             model = self.createAndCompile()
             for s in range(0, len(self.stages)):
                 if s<start_from_stage:
-                    st: Stage = self.stages[s]
-                    ec = ExecutionConfig(fold=i, stage=s, subsample=subsample, dr=os.path.dirname(self.path))
-                    if os.path.exists(ec.weightsPath()):
-                        model.load_weights(ec.weightsPath())
+                    self.skip_stage(i, model, s, subsample)
                     continue
                 st: Stage = self.stages[s]
                 ec = ExecutionConfig(fold=i, stage=s, subsample=subsample, dr=os.path.dirname(self.path))
@@ -103,15 +164,19 @@ class PipelineConfig:
             model = self.createAndCompile()
             for s in range(0, len(self.stages)):
                 if s<stage:
-                    st: Stage = self.stages[s]
-                    ec = ExecutionConfig(fold=i, stage=s, subsample=subsample, dr=os.path.dirname(self.path))
-                    if os.path.exists(ec.weightsPath()):
-                        model.load_weights(ec.weightsPath())
+                    self.skip_stage(i, model, s, subsample)
                     continue
                 st: Stage = self.stages[s]
                 ec = ExecutionConfig(fold=i, stage=s, subsample=subsample, dr=os.path.dirname(self.path))
                 return st.lr_find(folds, model, ec,start_lr,end_lr,epochs)
 
+    def skip_stage(self, i, model, s, subsample):
+        st: Stage = self.stages[s]
+        ec = ExecutionConfig(fold=i, stage=s, subsample=subsample, dr=os.path.dirname(self.path))
+        if os.path.exists(ec.weightsPath()):
+            model.load_weights(ec.weightsPath())
+            if 'unfreeze_encoder' in st.dict and st.dict['unfreeze_encoder']:
+                set_trainable(model)
 
     def fit_classifier(self,d,fold:int,model:keras.Model,batchSize=None,stage=0):
         if batchSize==None:
@@ -160,6 +225,7 @@ class PipelineConfig:
         self.dataset_augmenter=None
         self.bgr=None
         self.rate=0.5
+        self.crops=None
         for v in atrs:
             val = atrs[v];
             if v == 'augmentation' and val is not None:
@@ -201,6 +267,8 @@ class PipelineConfig:
 
     def predict_on_directory(self, path, fold=0, stage=0, limit=-1, batchSize=32,ttflips=False):
         mdl = self.load_model(fold, stage)
+        if self.crops is not None:
+            mdl=BatchCrop(self.crops,mdl)
         ta = self.transformAugmentor()
         for v in datasets.DirectoryDataSet(path, batchSize).generator(limit):
             for z in ta.augment_batches([v]):
@@ -227,7 +295,7 @@ class PipelineConfig:
     def predict_on_directory_with_model(self, mdl,path, limit=-1, batchSize=32,ttflips=False):
 
         ta = self.transformAugmentor()
-        with tqdm.tqdm(total=len(os.listdir(path)), unit="files", desc="classifying positive  images from " + path) as pbar:
+        with tqdm.tqdm(total=len(self.dir_list(path)), unit="files", desc="classifying positive  images from " + path) as pbar:
             for v in datasets.DirectoryDataSet(path, batchSize).generator(limit):
                 for z in ta.augment_batches([v]):
                     o1=np.array(z.images_aug);
@@ -252,8 +320,11 @@ class PipelineConfig:
                     yield z
 
     def predict_to_directory(self, spath, tpath,fold=0, stage=0, limit=-1, batchSize=32):
+
+
+
         ensure(tpath)
-        with tqdm.tqdm(total=len(os.listdir(spath)),unit="files",desc="segmentation of images from "+spath+" to "+tpath) as pbar:
+        with tqdm.tqdm(total=len(self.dir_list(spath)), unit="files", desc="segmentation of images from " + str(spath) + " to " + str(tpath)) as pbar:
             for v in self.predict_on_directory(spath,fold=fold, stage=stage, limit=limit, batchSize=batchSize):
                 b:imgaug.Batch=v;
                 for i in range(len(b.data)):
@@ -261,11 +332,21 @@ class PipelineConfig:
                     orig=b.images[i];
                     map=b.segmentation_maps_aug[i]
                     scaledMap=imgaug.augmenters.Scale({"height": orig.shape[0], "width": orig.shape[1]}).augment_segmentation_maps([map])
-                    imageio.imwrite(os.path.join(tpath, id[0:id.index('.')] + ".png"), (scaledMap[0].arr*255).astype(np.uint8))
+                    if isinstance(tpath, datasets.ConstrainedDirectory):
+                        tp=tpath.path
+                    else:
+                        tp=tpath
+                    imageio.imwrite(os.path.join(tp, id[0:id.index('.')] + ".png"), (scaledMap[0].arr*255).astype(np.uint8))
                 pbar.update(batchSize)
+
+    def dir_list(self, spath):
+        if isinstance(spath,datasets.ConstrainedDirectory):
+            return spath.filters
+        return os.listdir(spath)
+
     def predict_in_directory(self, spath, fold, stage,cb, data,limit=-1, batchSize=32,ttflips=False):
 
-        with tqdm.tqdm(total=len(os.listdir(spath)),unit="files",desc="segmentation of images from "+spath) as pbar:
+        with tqdm.tqdm(total=len(self.dir_list(spath)), unit="files", desc="segmentation of images from " + spath) as pbar:
             for v in self.predict_on_directory(spath,fold=fold, stage=stage, limit=limit, batchSize=batchSize,ttflips=ttflips):
                 b:imgaug.Batch=v;
                 for i in range(len(b.data)):
@@ -288,6 +369,9 @@ class PipelineConfig:
             pynama = t.alias(arg);
             if not arg in r:
                 cleaned[pynama] = self.all[arg];
+        if self.crops is not None:
+            cleaned["input_shape"]=(cleaned["input_shape"][0]//self.crops,cleaned["input_shape"][1]//self.crops,cleaned["input_shape"][2])
+
         return clazz(**cleaned)
 
     def createAndCompileClassifier(self,lr=0.0001):
