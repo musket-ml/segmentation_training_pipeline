@@ -128,7 +128,7 @@ augmentation:
 
 Freezing encoder is oftenly used with transfer learning. If you want to start with frozen encoder just add
 
-```
+```yaml
 freeze_encoder: true
 stages:
   - epochs: 10 #Let's go for 10 epochs with frozen encoder
