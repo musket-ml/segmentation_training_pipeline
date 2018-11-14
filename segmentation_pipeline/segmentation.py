@@ -25,7 +25,7 @@ keras.utils.get_custom_objects()["lovasz_loss"]= segmentation_pipeline.impl.loss
 keras.utils.get_custom_objects()["iou_loss"]= segmentation_pipeline.impl.losses.iou_coef_loss
 keras.utils.get_custom_objects()["dice_loss"]= segmentation_pipeline.impl.losses.dice_coef_loss
 keras.utils.get_custom_objects()["jaccard_loss"]= segmentation_pipeline.impl.losses.jaccard_distance_loss
-keras.utils.get_custom_objects()["focal_loss"]= segmentation_pipeline.impl.focal_loss.focal_loss(gamma=1)
+keras.utils.get_custom_objects()["focal_loss"]= segmentation_pipeline.impl.focal_loss.focal_loss
 from segmentation_pipeline.impl.deeplab import model as dlm
 
 def copy_if_exist(name: str, fr: dict, trg: dict):
@@ -413,7 +413,7 @@ class PipelineConfig:
 
     def evaluateAll(self,ds, fold:int,stage=-1,negatives="real"):
         folds = self.kfold(ds, range(0, len(ds)))
-        vl, vg, test_g = folds.generator(fold, False,returnBatch=True);
+        vl, vg, test_g = folds.generator(fold, False,negatives=negatives,returnBatch=True);
         indexes = folds.sampledIndexes(fold, False, negatives)
         m = self.load_model(fold, stage)
         num=0

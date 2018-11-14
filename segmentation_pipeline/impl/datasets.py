@@ -322,10 +322,10 @@ class KFoldedDataSet:
                 else:
                     nindexes.append(x)
 
-            random.shuffle(nindexes)
+            random.shuffle(nindexes,23232)
             nindexes = nindexes[ 0 : min(len(nindexes),round(len(sindexes)*negatives))]
             r=[]+sindexes+nindexes
-            random.shuffle(r)
+            random.shuffle(r,232772)
             return r;
         return indexes
 
