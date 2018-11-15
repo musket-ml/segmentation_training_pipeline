@@ -2,21 +2,24 @@ backbone: densenet169
 architecture: FPN
 augmentation:
   Fliplr: 0.5 #let's define some minimal augmentations on images
-  Flipud: 0.5
-  Affine:
-    scale: [0.8, 1.5]
-    translate_percent:
-      x: [-0.2,0.2]
-      y: [-0.2,0.2]
-    rotate: [-16, 16]
-    shear: [-16, 16]
+  BackgroundReplacer:
+    rate: 0.5
+    path: D:/bg
+    erosion: [0,5]
+  #Flipud: 0.5
+ # Affine:
+    #scale: [0.8, 1.5]
+#    translate_percent:
+#      x: [-0.2,0.2]
+#      y: [-0.2,0.2]
+ #   rotate: [-16, 16]
+  #  shear: [-16, 16]
 classes: 1
 #lr: 0.001
 activation: sigmoid
 encoder_weights: imagenet
 shape: [320, 320, 3]
 optimizer: Adam
-freeze_encoder: true
 batch: 12
 lr: 0.0001
 #segmentation_block_filters: 256
@@ -35,10 +38,11 @@ callbacks:
     monitor: val_binary_accuracy
     cooldown: 5
     verbose: 1
-loss: lovasz_loss
+loss: binary_crossentropy
 stages:
-  - epochs: 5
+  - epochs: 70
     negatives: real
-  - epochs: 5
+  - epochs: 100
     negatives: real
+    loss: focal_loss
     unfreeze_encoder: true

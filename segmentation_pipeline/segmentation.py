@@ -13,6 +13,11 @@ import yaml
 import segmentation_pipeline.impl.losses
 import segmentation_pipeline.impl.focal_loss
 import imageio
+import csv
+import six
+import typing
+import collections
+import io
 from segmentation_pipeline.impl.clr_callback import  CyclicLR
 from  segmentation_pipeline.impl.lr_finder import LRFinder
 keras.utils.get_custom_objects()["dice"]= segmentation_pipeline.impl.losses.dice_coef
@@ -125,6 +130,9 @@ class CropAndSplit:
 
 class PipelineConfig:
 
+    def setAllowResume(self,resume):
+        self.resume=resume
+
     def fit(self, d, subsample=1.0, foldsToExecute=None, start_from_stage=0):
         if self.crops is not None:
             d=CropAndSplit(d,self.crops)
@@ -193,6 +201,7 @@ class PipelineConfig:
             cb=[]+self.callbacks
             cb.append(keras.callbacks.CSVLogger(ec.classifier_metricsPath()))
             cb.append(keras.callbacks.ModelCheckpoint(ec.classifier_weightsPath(), save_best_only=True, monitor="val_binary_accuracy",verbose=1))
+
             model.fit_generator(rs(), len(indeces) / batchSize, 20, validation_data=rs1(), validation_steps=len(vindeces) / batchSize,callbacks=cb)
             pass
         finally:
@@ -227,12 +236,16 @@ class PipelineConfig:
         self.bgr=None
         self.rate=0.5
         self.crops=None
+        self.resume=False
         for v in atrs:
             val = atrs[v];
             if v == 'augmentation' and val is not None:
                 if "BackgroundReplacer" in val:
                     bgr=val["BackgroundReplacer"]
-                    self.bgr=datasets.Backgrounds(bgr["path"])
+                    erosion=0;
+                    if "erosion" in val:
+                        erosion=val["erosion"]
+                    self.bgr=datasets.Backgrounds(bgr["path"],erosion=erosion)
                     self.bgr.rate = bgr["rate"]
                     del val["BackgroundReplacer"]
                 val = configloader.parse("augmenters", val)
@@ -499,6 +512,17 @@ class ExecutionConfig:
         ensure(os.path.join(self.dirName, "classify_metrics"))
         return os.path.join(self.dirName, "classify_metrics","metrics-" + str(self.fold) + "." + str(self.stage) + ".csv")
 
+def maxEpoch(file):
+    with open(file, 'r') as csvfile:
+         spamreader = csv.reader(csvfile, delimiter=',', quotechar='|')
+         epoch=-1;
+         num=0;
+         for row in spamreader:
+             if num>0:
+                epoch=max(epoch,int(row[0]))
+             num = num + 1;
+         return epoch;
+
 
 class Stage:
     def __init__(self, dict, cfg: PipelineConfig):
@@ -541,6 +565,7 @@ class Stage:
         return ll
 
     def execute(self, kf: datasets.KFoldedDataSet, model: keras.Model, ec: ExecutionConfig):
+
         if 'unfreeze_encoder' in self.dict and self.dict['unfreeze_encoder']:
             set_trainable(model)
         if self.loss or self.lr:
@@ -550,15 +575,111 @@ class Stage:
             model.load_weights(self.initial_weights)
         if 'callbacks' in self.dict:
             cb = configloader.parse("callbacks", self.dict['callbacks'])
-        cb.append(keras.callbacks.CSVLogger(ec.metricsPath()))
+        kepoch=-1;
+        if self.cfg.resume:
+            kepoch=maxEpoch(ec.metricsPath())
+            if kepoch!=-1:
+                self.epochs=self.epochs-kepoch
+                if os.path.exists(ec.weightsPath()):
+                    model.load_weights(ec.weightsPath())
+                cb.append(CSVLogger(ec.metricsPath(),append=True,start=kepoch))
+            else: cb.append(CSVLogger(ec.metricsPath()))
+        else:    cb.append(CSVLogger(ec.metricsPath()))
         md = self.cfg.primary_metric_mode
         cb.append(
             keras.callbacks.ModelCheckpoint(ec.weightsPath(), save_best_only=True, monitor=self.cfg.primary_metric,
                                             mode=md, verbose=1))
         cb.append(DrawResults(self.cfg,kf,ec.fold,ec.stage,negatives=self.negatives))
-        kf.trainOnFold(ec.fold, model, cb, self.epochs, self.negatives, subsample=ec.subsample,validation_negatives=self.validation_negatives)
+        if self.epochs-kepoch==0:
+            return;
+        kf.trainOnFold(ec.fold, model, cb, self.epochs-kepoch, self.negatives, subsample=ec.subsample,validation_negatives=self.validation_negatives)
         pass
 
+
+class CSVLogger(keras.callbacks.Callback):
+    """Callback that streams epoch results to a csv file.
+
+    Supports all values that can be represented as a string,
+    including 1D iterables such as np.ndarray.
+
+    # Example
+
+    ```python
+    csv_logger = CSVLogger('training.log')
+    model.fit(X_train, Y_train, callbacks=[csv_logger])
+    ```
+
+    # Arguments
+        filename: filename of the csv file, e.g. 'run/log.csv'.
+        separator: string used to separate elements in the csv file.
+        append: True: append if file exists (useful for continuing
+            training). False: overwrite existing file,
+    """
+
+    def __init__(self, filename, separator=',', append=False,start=0):
+        self.sep = separator
+        self.filename = filename
+        self.append = append
+        self.writer = None
+        self.keys = None
+        self.start=start
+        self.append_header = True
+
+        self.file_flags = ''
+        self._open_args = {'newline': '\n'}
+        super(CSVLogger, self).__init__()
+
+    def on_train_begin(self, logs=None):
+        if self.append:
+            if os.path.exists(self.filename):
+                with open(self.filename, 'r' + self.file_flags) as f:
+                    self.append_header = not bool(len(f.readline()))
+            mode = 'a'
+        else:
+            mode = 'w'
+        self.csv_file = io.open(self.filename,
+                                mode + self.file_flags,
+                                **self._open_args)
+
+    def on_epoch_end(self, epoch, logs=None):
+        logs = logs or {}
+        epoch=epoch+self.start
+        def handle_value(k):
+            is_zero_dim_ndarray = isinstance(k, np.ndarray) and k.ndim == 0
+            if isinstance(k, six.string_types):
+                return k
+            elif isinstance(k, collections.Iterable) and not is_zero_dim_ndarray:
+                return '"[%s]"' % (', '.join(map(str, k)))
+            else:
+                return k
+
+        if self.keys is None:
+            self.keys = sorted(logs.keys())
+
+        if self.model.stop_training:
+            # We set NA so that csv parsers do not fail for this last epoch.
+            logs = dict([(k, logs[k] if k in logs else 'NA') for k in self.keys])
+
+        if not self.writer:
+            class CustomDialect(csv.excel):
+                delimiter = self.sep
+                def __init__(self):
+                    self.delimiter=","
+            fieldnames = ['epoch'] + self.keys
+            self.writer = csv.DictWriter(self.csv_file,
+                                         fieldnames=fieldnames,
+                                         dialect=CustomDialect)
+            if self.append_header:
+                self.writer.writeheader()
+
+        row_dict = collections.OrderedDict({'epoch': epoch})
+        row_dict.update((key, handle_value(logs[key])) for key in self.keys)
+        self.writer.writerow(row_dict)
+        self.csv_file.flush()
+
+    def on_train_end(self, logs=None):
+        self.csv_file.close()
+        self.writer = None
 
 class DrawResults(keras.callbacks.Callback):
     def __init__(self,cfg,folds,fold,stage,negatives,limit=16):
@@ -582,4 +703,6 @@ class DrawResults(keras.callbacks.Callback):
             datasets.draw_test_batch(i, os.path.join(dr, "t_epoch_" + str(epoch) + "." + str(num) + '.jpg'))
             num = num + 1
         pass
+
+
 

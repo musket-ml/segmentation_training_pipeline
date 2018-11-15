@@ -45,7 +45,10 @@ types:
     type: Augmenter
     properties:
       path: string
-      rate: number
+      rate?: number
+      erosion?:
+       type: number
+       default: 0
   AddElementwise: RangedPerChannel
   Multiply: RangedPerChannel
   MultiplyElementwise: RangedPerChannel

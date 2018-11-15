@@ -2,6 +2,7 @@ backbone: mobilenetv2
 architecture: DeepLabV3
 augmentation:
  Fliplr: 0.5
+
 classes: 1
 activation: sigmoid
 encoder_weights: pascal_voc

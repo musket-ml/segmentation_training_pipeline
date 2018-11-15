@@ -15,6 +15,7 @@ import traceback
 import random
 import cv2 as cv
 
+
 class PredictionItem:
     def __init__(self, path,x,y):
         self.x=x
@@ -162,15 +163,23 @@ class DirectoryDataSet:
             yield imgaug.Batch(images=bx,data=ps)
         return
 class Backgrounds:
-    def __init__(self,path):
+    def __init__(self,path,erosion=0):
         self.path=path;
         self.rate=0.5
+        self.erosion=erosion
         self.options=[os.path.join(path,x) for x in os.listdir(self.path)]
 
     def next(self,i,i2):
         fl=random.choice(self.options)
         im=imageio.imread(fl)
         r=cv.resize(im,(i.shape[1],i.shape[0]))
+        if isinstance(self.erosion,list):
+            er=random.randint(self.erosion[0],self.erosion[1])
+            kernel = np.ones((er, er), np.uint8)
+            i2 = cv.erode(i2, kernel)
+        elif self.erosion>0:
+            kernel = np.ones((self.erosion, self.erosion), np.uint8)
+            i2=cv.erode(i2,kernel)
         i2=i2!=0
         i2=np.squeeze(i2)
         r[i2] = i[i2]
