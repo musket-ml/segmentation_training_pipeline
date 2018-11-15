@@ -513,6 +513,8 @@ class ExecutionConfig:
         return os.path.join(self.dirName, "classify_metrics","metrics-" + str(self.fold) + "." + str(self.stage) + ".csv")
 
 def maxEpoch(file):
+    if not os.path.exists(file):
+        return -1;
     with open(file, 'r') as csvfile:
          spamreader = csv.reader(csvfile, delimiter=',', quotechar='|')
          epoch=-1;
