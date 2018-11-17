@@ -42,6 +42,15 @@ def iou_coef(y_true, y_pred, smooth=1):
     # union = K.sum((y_true,-1) + K.sum(y_pred,-1)) - intersection
     # return (intersection + smooth) / ( union + smooth)
 
+def dice(true, pred):
+    true = tf.to_float(true>0.5)
+    pred = tf.to_float(pred>0.5)
+
+    intersection =K.sum (true * pred)
+    im_sum = K.sum(true) + K.sum(pred)
+
+    return 2.0 * intersection / (im_sum + EPS)
+
 def iou_coef_loss(y_true, y_pred):
     return -iou_coef(y_true, y_pred)
 
@@ -66,14 +75,7 @@ def jaccard_distance_loss(y_true, y_pred, smooth=100):
 EPS = 1e-10
 
 
-def dice(true, pred):
-    true = tf.to_float(true>0.5)
-    pred = tf.to_float(pred>0.5)
 
-    intersection =K.sum (true * pred)
-    im_sum = K.sum(true) + K.sum(pred)
-
-    return 2.0 * intersection / (im_sum + EPS)
 
 
 def dice_all(true, pred):

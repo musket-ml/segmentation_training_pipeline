@@ -163,9 +163,10 @@ class DirectoryDataSet:
             yield imgaug.Batch(images=bx,data=ps)
         return
 class Backgrounds:
-    def __init__(self,path,erosion=0):
+    def __init__(self,path,erosion=0,augmenters:imgaug.augmenters.Augmenter=None):
         self.path=path;
         self.rate=0.5
+        self.augs=augmenters
         self.erosion=erosion
         self.options=[os.path.join(path,x) for x in os.listdir(self.path)]
 
@@ -186,7 +187,22 @@ class Backgrounds:
         return r;
 
     def augment_item(self,i):
-        r=self.next(i.x,i.y)
+        if self.augs!=None:
+            b=imgaug.Batch(images=[i.x],
+                                segmentation_maps=[imgaug.SegmentationMapOnImage(i.y, shape=i.y.shape)])
+            for v in self.augs.augment_batches([b]):
+                bsa:imgaug.Batch=v
+                #print(bsa.images_aug)
+                #print(bsa.images_aug[0].shape)
+                #print(i.x.shape)
+                break
+            xa=bsa.images_aug[0]
+            xa=cv.resize(xa,(i.x.shape[1],i.x.shape[0]))
+            ya=bsa.segmentation_maps_aug[0].arr
+            ya = cv.resize(ya, (i.x.shape[1],  i.x.shape[0]))
+            r = self.next(xa, ya)
+        else: r=self.next(i.x,i.y)
+
         return PredictionItem(i.id,r,i.y)
 
 class WithBackgrounds:

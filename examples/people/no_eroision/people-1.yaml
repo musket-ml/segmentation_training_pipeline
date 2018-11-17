@@ -5,15 +5,15 @@ augmentation:
   BackgroundReplacer:
     rate: 0.5
     path: D:/bg
-    erosion: [0,5]
-  #Flipud: 0.5
- # Affine:
-    #scale: [0.8, 1.5]
+    #erosion: [0,5]
+  Flipud: 0.5
+  Affine:
+    scale: [0.8, 1.5]
 #    translate_percent:
 #      x: [-0.2,0.2]
 #      y: [-0.2,0.2]
- #   rotate: [-16, 16]
-  #  shear: [-16, 16]
+    rotate: [-16, 16]
+    shear: [-16, 16]
 classes: 1
 #lr: 0.001
 activation: sigmoid
@@ -40,9 +40,5 @@ callbacks:
     verbose: 1
 loss: binary_crossentropy
 stages:
-  - epochs: 70
-    negatives: real
   - epochs: 100
     negatives: real
-    loss: focal_loss
-    unfreeze_encoder: true

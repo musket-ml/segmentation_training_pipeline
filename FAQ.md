@@ -21,4 +21,18 @@ like in the following example:
 segmentation_pipeline.impl.datasets.AUGMENTER_QUEUE_LIMIT = 3
 ```
 
-   
+####How can I run sepate set of augmenters on initial image/mask when replacing backgrounds with Background Augmenter?
+```yaml
+  BackgroundReplacer:
+    rate: 0.5
+    path: D:/bg
+    augmenters: #this augmenters will run on original image before replacing background
+      Affine:
+        scale: [0.8, 1.5]
+        translate_percent:
+              x: [-0.2,0.2]
+              y: [-0.2,0.2]
+        rotate: [-16, 16]
+        shear: [-16, 16]
+    erosion: [0,5]   
+```

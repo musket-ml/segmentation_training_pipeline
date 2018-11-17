@@ -20,8 +20,7 @@ import collections
 import io
 from segmentation_pipeline.impl.clr_callback import  CyclicLR
 from  segmentation_pipeline.impl.lr_finder import LRFinder
-keras.utils.get_custom_objects()["dice"]= segmentation_pipeline.impl.losses.dice_coef
-keras.utils.get_custom_objects()["dice_bool"]= segmentation_pipeline.impl.losses.dice
+keras.utils.get_custom_objects()["dice"]= segmentation_pipeline.impl.losses.dice
 keras.utils.get_custom_objects()["iou"]= segmentation_pipeline.impl.losses.iou_coef
 keras.utils.get_custom_objects()["iot"]= segmentation_pipeline.impl.losses.iot_coef
 
@@ -242,10 +241,15 @@ class PipelineConfig:
             if v == 'augmentation' and val is not None:
                 if "BackgroundReplacer" in val:
                     bgr=val["BackgroundReplacer"]
+                    aug=None
                     erosion=0;
-                    if "erosion" in val:
-                        erosion=val["erosion"]
-                    self.bgr=datasets.Backgrounds(bgr["path"],erosion=erosion)
+                    if "erosion" in bgr:
+                        erosion=bgr["erosion"]
+                    if "augmenters" in bgr:
+                        aug=bgr["augmenters"]
+                        aug = configloader.parse("augmenters", aug)
+                        aug=imgaug.augmenters.Sequential(aug)
+                    self.bgr=datasets.Backgrounds(bgr["path"],erosion=erosion,augmenters=aug)
                     self.bgr.rate = bgr["rate"]
                     del val["BackgroundReplacer"]
                 val = configloader.parse("augmenters", val)
@@ -409,7 +413,9 @@ class PipelineConfig:
         return imgaug.augmenters.Sequential(transforms)
 
     def compile(self, net: keras.Model, opt: keras.optimizers.Optimizer, loss:str=None):
-        if loss is not None and "+" in loss:
+        if loss==None:
+            loss=self.loss
+        if "+" in loss:
             loss=composite.ps(loss)
 
         if (loss=='lovasz_loss' and isinstance(net.layers[-1],keras.layers.Activation)):
@@ -585,8 +591,13 @@ class Stage:
                 if os.path.exists(ec.weightsPath()):
                     model.load_weights(ec.weightsPath())
                 cb.append(CSVLogger(ec.metricsPath(),append=True,start=kepoch))
-            else: cb.append(CSVLogger(ec.metricsPath()))
-        else:    cb.append(CSVLogger(ec.metricsPath()))
+            else:
+                cb.append(CSVLogger(ec.metricsPath()))
+                kepoch=0
+
+        else:
+            kepoch=0
+            cb.append(CSVLogger(ec.metricsPath()))
         md = self.cfg.primary_metric_mode
         cb.append(
             keras.callbacks.ModelCheckpoint(ec.weightsPath(), save_best_only=True, monitor=self.cfg.primary_metric,
