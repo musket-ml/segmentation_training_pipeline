@@ -35,6 +35,9 @@ types:
       classifier_lr:
         type: number
         (meta.custom): true
+      extra_train_data?:
+        type: string
+        (meta.custom): true
       dataset_augmenter?:
         type: AugmenterConfig
         (meta.custom): true
@@ -124,6 +127,7 @@ types:
       unfreeze_encoder?: boolean
       lr?: number
       callbacks?: cb.Callback[]
+      extra_callbacks?: cb.Callback[]
 
   DeepLabV3:
       type: PipelineConfig

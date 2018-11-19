@@ -1,5 +1,6 @@
 import imgaug
 import segmentation_models
+import pandas as pd
 import numpy as np
 import tqdm
 from segmentation_models.utils import set_trainable
@@ -47,6 +48,9 @@ custom_models={
     "DeepLabV3":dlm.Deeplabv3
 }
 dataset_augmenters={
+
+}
+extra_train={
 
 }
 import keras.applications as app
@@ -132,6 +136,29 @@ class PipelineConfig:
     def setAllowResume(self,resume):
         self.resume=resume
 
+    def info(self,d=None,metric=None):
+        if metric is None:
+            metric=self.primary_metric
+        if d is not None:
+            folds = self.kfold(d, range(0, len(d)))
+            ln=len(folds.folds)
+        else:
+            ln=5
+        res=[]
+        for i in range(ln):
+            for s in range(0, len(self.stages)):
+
+                st: Stage = self.stages[s]
+                ec = ExecutionConfig(fold=i, stage=s, dr=os.path.dirname(self.path))
+                if (os.path.exists(ec.metricsPath())):
+                    try:
+                        fr=pd.read_csv(ec.metricsPath())
+                        res.append((i,s,fr[metric].max()))
+                    except:
+                        pass
+        return res
+
+
     def fit(self, d, subsample=1.0, foldsToExecute=None, start_from_stage=0):
         if self.crops is not None:
             d=CropAndSplit(d,self.crops)
@@ -139,7 +166,6 @@ class PipelineConfig:
         if os.path.exists(os.path.join(dn, "summary.yaml")):
             raise ValueError("Experiment is already finished!!!!")
         folds = self.kfold(d, range(0, len(d)))
-
         for i in range(len(folds.folds)):
             if foldsToExecute:
                 if not i in foldsToExecute:
@@ -232,8 +258,11 @@ class PipelineConfig:
         self.primary_metric = "val_binary_accuracy"
         self.primary_metric_mode = "auto"
         self.dataset_augmenter=None
+        self.add_to_train = None
+        self.extra_train_data=None
         self.bgr=None
         self.rate=0.5
+        self.showDataExamples=False
         self.crops=None
         self.resume=False
         for v in atrs:
@@ -474,6 +503,9 @@ class PipelineConfig:
         if self.bgr is not None:
             ds=datasets.WithBackgrounds(ds,self.bgr)
         kf= datasets.KFoldedDataSet(ds, indeces, self.augmentation, transforms, batchSize=batch)
+
+        if self.extra_train_data is not None:
+            kf.addToTrain(extra_train[self.extra_train_data])
         if self.dataset_augmenter is not None:
             args = dict(self.dataset_augmenter)
             del args["name"]
@@ -583,6 +615,8 @@ class Stage:
             model.load_weights(self.initial_weights)
         if 'callbacks' in self.dict:
             cb = configloader.parse("callbacks", self.dict['callbacks'])
+        if 'extra_callbacks' in self.dict:
+            cb = configloader.parse("callbacks", self.dict['extra_callbacks'])
         kepoch=-1;
         if self.cfg.resume:
             kepoch=maxEpoch(ec.metricsPath())
@@ -603,6 +637,8 @@ class Stage:
             keras.callbacks.ModelCheckpoint(ec.weightsPath(), save_best_only=True, monitor=self.cfg.primary_metric,
                                             mode=md, verbose=1))
         cb.append(DrawResults(self.cfg,kf,ec.fold,ec.stage,negatives=self.negatives))
+        if self.cfg.showDataExamples:
+            cb.append(DrawResults(self.cfg, kf, ec.fold, ec.stage, negatives=self.negatives,train=True))
         if self.epochs-kepoch==0:
             return;
         kf.trainOnFold(ec.fold, model, cb, self.epochs-kepoch, self.negatives, subsample=ec.subsample,validation_negatives=self.validation_negatives)
@@ -695,12 +731,15 @@ class CSVLogger(keras.callbacks.Callback):
         self.writer = None
 
 class DrawResults(keras.callbacks.Callback):
-    def __init__(self,cfg,folds,fold,stage,negatives,limit=16):
-            self.ta = cfg.transformAugmentor()
+    def __init__(self,cfg,folds,fold,stage,negatives,limit=16,train=False):
+            if train:
+                self.ta = folds.augmentor(isTrain=True)
+            else: self.ta = cfg.transformAugmentor()
             self.fold=fold
             self.stage=stage
             self.cfg=cfg
-            self.rs = folds.load(fold, False, negatives, limit)
+            self.train=train
+            self.rs = folds.load(fold, train, negatives, limit)
             pass
 
     def on_epoch_end(self, epoch, logs=None):
@@ -713,7 +752,9 @@ class DrawResults(keras.callbacks.Callback):
         for i in iter():
             dr=os.path.join(os.path.dirname(self.cfg.path),"examples", str(self.stage), str(self.fold))
             ensure(dr)
-            datasets.draw_test_batch(i, os.path.join(dr, "t_epoch_" + str(epoch) + "." + str(num) + '.jpg'))
+            if self.train:
+                datasets.draw_test_batch(i, os.path.join(dr, "t_epoch_train" + str(epoch) + "." + str(num) + '.jpg'))
+            else: datasets.draw_test_batch(i, os.path.join(dr, "t_epoch_" + str(epoch) + "." + str(num) + '.jpg'))
             num = num + 1
         pass
 

@@ -91,11 +91,20 @@ class DataSetLoader:
 
 def drawBatch(batch,path):
     cells = []
+    nc=2
+    if not hasattr(batch, "segmentation_maps_aug") or batch.segmentation_maps_aug is None:
+        batch.segmentation_maps_aug=batch.predicted_maps_aug
+    if not hasattr(batch, "images_aug") or batch.images_aug is None:
+        batch.images_aug=batch.images
+        batch.segmentation_maps_aug=batch.predicted_maps_aug
     for i in range(0, len(batch.segmentation_maps_aug)):
         cells.append(batch.images_aug[i])
+        if hasattr(batch,"predicted_maps_aug"):
+            cells.append(batch.segmentation_maps[i].draw_on_image(batch.images_aug[i]))  # column 2
+            nc=3
         cells.append(batch.segmentation_maps_aug[i].draw_on_image(batch.images_aug[i]))  # column 2
     # Convert cells to grid image and save.
-    grid_image = imgaug.draw_grid(cells, cols=2)
+    grid_image = imgaug.draw_grid(cells, cols=nc)
     imageio.imwrite(path, grid_image)
 
 def draw_test_batch(batch,path):
@@ -115,6 +124,53 @@ class ConstrainedDirectory:
 
     def __repr__(self):
         return self.path+" (with filter)"
+
+
+class CompositeDataSet:
+
+    def __init__(self,components):
+        self.components=components
+        sum=0;
+        shifts=[]
+        for i in components:
+            sum=sum+len(i)
+            shifts.append(sum)
+        self.shifts=shifts
+        self.len=sum
+
+    def item(self, item, isTrain):
+        i = item
+        for j in range(len(self.shifts)):
+            d = self.components[j]
+            if i < self.shifts[j]:
+                if hasattr(d,"item"):
+                    return d.item(i,isTrain)
+                return d[i]
+            else:
+                i = i - self.shifts[j]
+        return None
+
+    def __getitem__(self, item):
+        i=item
+        for j in range(len(self.shifts)):
+            d=self.components[j]
+            if i<self.shifts[j]:
+                return d[i]
+            else: i=i-self.shifts[j]
+        return None
+
+    def isPositive(self, item):
+        i = item
+        for j in range(len(self.shifts)):
+            d = self.components[j]
+            if i < self.shifts[j]:
+                return d.isPositive(i)
+            else:
+                i = i - self.shifts[j]
+        return False
+
+    def __len__(self):
+        return self.len
 
 class DirectoryDataSet:
 
@@ -188,6 +244,7 @@ class Backgrounds:
 
     def augment_item(self,i):
         if self.augs!=None:
+
             b=imgaug.Batch(images=[i.x],
                                 segmentation_maps=[imgaug.SegmentationMapOnImage(i.y, shape=i.y.shape)])
             for v in self.augs.augment_batches([b]):
@@ -197,13 +254,15 @@ class Backgrounds:
                 #print(i.x.shape)
                 break
             xa=bsa.images_aug[0]
+
             xa=cv.resize(xa,(i.x.shape[1],i.x.shape[0]))
             ya=bsa.segmentation_maps_aug[0].arr
             ya = cv.resize(ya, (i.x.shape[1],  i.x.shape[0]))
             r = self.next(xa, ya)
-        else: r=self.next(i.x,i.y)
-
-        return PredictionItem(i.id,r,i.y)
+            return PredictionItem(i.id, r, ya>0.5)
+        else:
+            r=self.next(i.x,i.y)
+            return PredictionItem(i.id,r,i.y)
 
 class WithBackgrounds:
     def __init__(self, ds,bg):
@@ -259,6 +318,17 @@ class KFoldedDataSet:
         self.positive={}
         self.kf=ms.KFold(folds,shuffle=True,random_state=rs);
         self.folds=[v for v in self.kf.split(indexes)]
+
+    def addToTrain(self,dataset):
+        ma = len(self.ds)
+        self.ds = CompositeDataSet([self.ds, dataset])
+        nf = []
+        for fold in self.folds:
+            train = fold[0]
+            rrr = np.concatenate([train, np.arange(ma, ma + len(dataset))])
+            np.random.shuffle(rrr)
+            nf.append((rrr, fold[1]))
+        self.folds = nf
 
     def foldIterations(self,foldNum,isTrain=True):
         indexes = self.indexes(foldNum, isTrain)
