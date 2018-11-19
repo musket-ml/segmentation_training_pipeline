@@ -38,7 +38,7 @@ segmentation_pipeline.impl.datasets.AUGMENTER_QUEUE_LIMIT = 3
 ```
 
 
-### How can I visualize images that are used for training (after augmentations)?
+#### How can I visualize images that are used for training (after augmentations)?
 
 You should set `showDataExamples` to True like in the following sample
 ```python
@@ -47,7 +47,7 @@ cfg.showDataExamples=True
 ```
 if will lead to generation of training images samples and storing them in examples folder at the end of each epoch
 
-### What I can do if i have some extra training data, that should not be included into validation, but should be used during the training?
+#### What I can do if i have some extra training data, that should not be included into validation, but should be used during the training?
 
 ```python
 extra_data=NotzeroSimplePNGMaskDataSet("D:/phaces/all","D:/phaces/masks") #My dataset that should be added to training
@@ -60,7 +60,7 @@ and in the config file:
 extra_train_data: people
 ```
 
-### How to get basic statistics across my folds/stages
+#### How to get basic statistics across my folds/stages
 
 
 This code sample will return primary metric stats over folds/stages
@@ -70,7 +70,7 @@ metrics = cfg.info()
 ```
 
 
-### I have some callbacks that are configured globally, but I need some extra callbacks for my last training stage?
+#### I have some callbacks that are configured globally, but I need some extra callbacks for my last training stage?
 
 There are two possible ways how you may configure callbacks on stage level:
 
