@@ -286,12 +286,12 @@ class PipelineConfig:
                 val = configloader.parse("augmenters", val)
             if v == 'callbacks':
                 cs=[]
-                if "CyclicLR" in val and val is not None:
-                    bgr = val["CyclicLR"]
-                    cs.append(CyclicLR(**bgr))
-                    #self.bgr = datasets.Backgrounds(bgr["path"])
-                    #self.bgr.rate = bgr["rate"]
-                    del val["CyclicLR"]
+                # if "CyclicLR" in val and val is not None:
+                #     bgr = val["CyclicLR"]
+                #     cs.append(CyclicLR(**bgr))
+                #     #self.bgr = datasets.Backgrounds(bgr["path"])
+                #     #self.bgr.rate = bgr["rate"]
+                #     del val["CyclicLR"]
                 val = configloader.parse("callbacks", val)
                 if val is not None:
                     val=val+cs
@@ -366,13 +366,10 @@ class PipelineConfig:
                     pbar.update(batchSize)
                     yield z
 
-    def predict_to_directory(self, spath, tpath,fold=0, stage=0, limit=-1, batchSize=32):
-
-
-
+    def predict_to_directory(self, spath, tpath,fold=0, stage=0, limit=-1, batchSize=32,binaryArray=False,ttflips=False):
         ensure(tpath)
         with tqdm.tqdm(total=len(self.dir_list(spath)), unit="files", desc="segmentation of images from " + str(spath) + " to " + str(tpath)) as pbar:
-            for v in self.predict_on_directory(spath,fold=fold, stage=stage, limit=limit, batchSize=batchSize):
+            for v in self.predict_on_directory(spath,fold=fold, stage=stage, limit=limit, batchSize=batchSize,ttflips=ttflips):
                 b:imgaug.Batch=v;
                 for i in range(len(b.data)):
                     id=b.data[i];
@@ -383,7 +380,9 @@ class PipelineConfig:
                         tp=tpath.path
                     else:
                         tp=tpath
-                    imageio.imwrite(os.path.join(tp, id[0:id.index('.')] + ".png"), (scaledMap[0].arr*255).astype(np.uint8))
+                    if binaryArray:
+                        np.save(os.path.join(tp, id[0:id.index('.')]),scaledMap[0].arr);
+                    else: imageio.imwrite(os.path.join(tp, id[0:id.index('.')] + ".png"), (scaledMap[0].arr*255).astype(np.uint8))
                 pbar.update(batchSize)
 
     def dir_list(self, spath):
@@ -406,6 +405,7 @@ class PipelineConfig:
 
 
     def createNet(self):
+
         if self.architecture in custom_models:
             clazz=custom_models[self.architecture]
         else: clazz = getattr(segmentation_models, self.architecture)
@@ -419,7 +419,38 @@ class PipelineConfig:
         if self.crops is not None:
             cleaned["input_shape"]=(cleaned["input_shape"][0]//self.crops,cleaned["input_shape"][1]//self.crops,cleaned["input_shape"][2])
 
+        if cleaned["input_shape"][2]>3 and self.encoder_weights!=None and len(self.encoder_weights)>0:
+            if os.path.exists(self.path + ".mdl-nchannel"):
+                cleaned["encoder_weights"] = None
+                model = clazz(**cleaned)
+                model.load_weights(self.path + ".mdl-nchannel")
+                return  model
+
+            copy=cleaned.copy();
+            copy["input_shape"] = (cleaned["input_shape"][0] , cleaned["input_shape"][1] , 3)
+            model1=clazz(**copy);
+            cleaned["encoder_weights"]=None
+            model=clazz(**cleaned)
+            self.adaptNet(model,model1);
+            model.save_weights(self.path + ".mdl-nchannel")
+            return model
         return clazz(**cleaned)
+
+
+    def adaptNet(self,model,model1,copy=False):
+        notUpdated=True
+        for i in range(0, len(model1.layers)):
+            if isinstance(model.layers[i],keras.layers.Conv2D) and notUpdated:
+                val = model1.layers[i].get_weights()[0]
+                vvv = np.zeros(shape=(7, 7, 4, 64), dtype=np.float32)
+                vvv[:, :, 0:3, :] = val
+                if copy:
+                    vvv[:, :, 3, :] = val[:, :, 2, :]
+                model.layers[i].set_weights([vvv])
+                notUpdated=False
+            else:
+                model.layers[i].set_weights(model1.layers[i].get_weights())
+
 
     def createAndCompileClassifier(self,lr=0.0001):
         mdl: keras.Model = app.DenseNet201(input_shape=self.shape, include_top=False)
@@ -758,5 +789,15 @@ class DrawResults(keras.callbacks.Callback):
             num = num + 1
         pass
 
+keras.callbacks.CyclicLR=segmentation_pipeline.impl.clr_callback.CyclicLR
 
-
+def ansemblePredictions(sourceFolder,folders:[str],cb,d):
+    for i in os.listdir(sourceFolder):
+       a=None
+       for f in folders:
+           if a is None:
+            a=np.load(f+i[0:i.index(".")]+".npy")
+           else:
+            a=a+np.load(f+i[0:i.index(".")]+".npy")
+       a=a/len(folders)
+       cb(i,a,d)

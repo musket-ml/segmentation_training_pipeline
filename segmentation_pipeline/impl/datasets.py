@@ -110,9 +110,9 @@ def drawBatch(batch,path):
 def draw_test_batch(batch,path):
     cells = []
     for i in range(0, len(batch.segmentation_maps_aug)):
-        cells.append(batch.images_aug[i])
-        cells.append(batch.segmentation_maps_aug[i].draw_on_image(batch.images_aug[i]))  # column 2
-        cells.append(batch.heatmaps_aug[i].draw_on_image(batch.images_aug[i])[0])  # column 2
+        cells.append(batch.images_aug[i][:,:,0:3])
+        cells.append(batch.segmentation_maps_aug[i].draw_on_image(batch.images_aug[i][:,:,0:3]))  # column 2
+        cells.append(batch.heatmaps_aug[i].draw_on_image(batch.images_aug[i][:,:,0:3])[0])  # column 2
     # Convert cells to grid image and save.
     grid_image = imgaug.draw_grid(cells, cols=3)
     imageio.imwrite(path, grid_image)
@@ -239,7 +239,13 @@ class Backgrounds:
             i2=cv.erode(i2,kernel)
         i2=i2!=0
         i2=np.squeeze(i2)
-        r[i2] = i[i2]
+        if i.shape[2]!=3:
+           zr=np.copy(i)
+           zr[:,:,0:3]=r
+           zr[i2] = i[i2]
+           return zr
+        else:
+            r[i2] = i[i2]
         return r;
 
     def augment_item(self,i):
