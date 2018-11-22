@@ -443,6 +443,7 @@ class KFoldedDataSet:
 
         tl,tg,train_g=self.generator_from_indexes(train_indexes)
         vl,vg,test_g = self.generator_from_indexes(test_indexes,isTrain=False)
+
         try:
             model.fit_generator(train_g(), len(train_indexes)//(round(subsample*self.batchSize)),
                              epochs=numEpochs,

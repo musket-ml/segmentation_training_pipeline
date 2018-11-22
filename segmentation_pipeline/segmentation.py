@@ -136,14 +136,10 @@ class PipelineConfig:
     def setAllowResume(self,resume):
         self.resume=resume
 
-    def info(self,d=None,metric=None):
+    def info(self,metric=None):
         if metric is None:
             metric=self.primary_metric
-        if d is not None:
-            folds = self.kfold(d, range(0, len(d)))
-            ln=len(folds.folds)
-        else:
-            ln=5
+        ln=self.folds_count
         res=[]
         for i in range(ln):
             for s in range(0, len(self.stages)):
@@ -252,6 +248,8 @@ class PipelineConfig:
         self.all = atrs
         self.augmentation = []
         self.transforms = []
+        self.folds_count=5
+        self.random_state=33
         self.stages = []
         self.callbacks = []
         self.path = None
@@ -533,7 +531,7 @@ class PipelineConfig:
         transforms.append(imgaug.augmenters.Scale({"height": self.shape[0], "width": self.shape[1]}))
         if self.bgr is not None:
             ds=datasets.WithBackgrounds(ds,self.bgr)
-        kf= datasets.KFoldedDataSet(ds, indeces, self.augmentation, transforms, batchSize=batch)
+        kf= datasets.KFoldedDataSet(ds, indeces, self.augmentation, transforms, batchSize=batch,rs=self.random_state,folds=self.folds_count)
 
         if self.extra_train_data is not None:
             kf.addToTrain(extra_train[self.extra_train_data])
