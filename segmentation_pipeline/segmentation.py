@@ -16,7 +16,9 @@ import segmentation_pipeline.impl.focal_loss
 import imageio
 import csv
 import six
+from keras.utils import multi_gpu_model
 import typing
+import segmentation_pipeline.impl.alt as alt
 import collections
 import io
 from segmentation_pipeline.impl.clr_callback import  CyclicLR
@@ -251,6 +253,7 @@ class PipelineConfig:
         self.folds_count=5
         self.random_state=33
         self.stages = []
+        self.gpus=1
         self.callbacks = []
         self.path = None
         self.primary_metric = "val_binary_accuracy"
@@ -345,7 +348,11 @@ class PipelineConfig:
                 for z in ta.augment_batches([v]):
                     o1=np.array(z.images_aug);
                     res = mdl.predict(o1)
-                    if ttflips:
+                    if ttflips=="Horizontal":
+                        another = imgaug.augmenters.Fliplr(1.0).augment_images(z.images_aug);
+                        res1 = mdl.predict(np.array(another))
+                        res = (res + res1) / 2.0
+                    elif ttflips:
                         another=imgaug.augmenters.Fliplr(1.0).augment_images(z.images_aug);
                         res1= mdl.predict(np.array(another))
 
@@ -662,14 +669,22 @@ class Stage:
             kepoch=0
             cb.append(CSVLogger(ec.metricsPath()))
         md = self.cfg.primary_metric_mode
-        cb.append(
-            keras.callbacks.ModelCheckpoint(ec.weightsPath(), save_best_only=True, monitor=self.cfg.primary_metric,
-                                            mode=md, verbose=1))
+        if self.cfg.gpus>1:
+            cb.append(
+                alt.AltModelCheckpoint(ec.weightsPath(), save_best_only=True, monitor=self.cfg.primary_metric,
+                                                mode=md, verbose=1))
+        else:
+            cb.append(
+                keras.callbacks.ModelCheckpoint(ec.weightsPath(), save_best_only=True, monitor=self.cfg.primary_metric,
+                                                mode=md, verbose=1))
+
         cb.append(DrawResults(self.cfg,kf,ec.fold,ec.stage,negatives=self.negatives))
         if self.cfg.showDataExamples:
             cb.append(DrawResults(self.cfg, kf, ec.fold, ec.stage, negatives=self.negatives,train=True))
         if self.epochs-kepoch==0:
             return;
+        if self.cfg.gpus>1:
+            model=multi_gpu_model(model,self.cfg.gpus,True,True)
         kf.trainOnFold(ec.fold, model, cb, self.epochs-kepoch, self.negatives, subsample=ec.subsample,validation_negatives=self.validation_negatives)
         pass
 
@@ -789,13 +804,22 @@ class DrawResults(keras.callbacks.Callback):
 
 keras.callbacks.CyclicLR=segmentation_pipeline.impl.clr_callback.CyclicLR
 
-def ansemblePredictions(sourceFolder,folders:[str],cb,d):
+def ansemblePredictions(sourceFolder,folders:[str],cb,d,weights=None):
+    if weights==None:
+        weights=[]
+        for f in folders:
+            weights.append(1.0)
+
     for i in os.listdir(sourceFolder):
        a=None
+       num = 0;
+       sw = 0;
        for f in folders:
+           sw=sw+weights[num]
            if a is None:
-            a=np.load(f+i[0:i.index(".")]+".npy")
+            a=np.load(f+i[0:i.index(".")]+".npy")*weights[num]
            else:
-            a=a+np.load(f+i[0:i.index(".")]+".npy")
-       a=a/len(folders)
+            a=a+np.load(f+i[0:i.index(".")]+".npy")*weights[num]
+           num=num+1
+       a=a/sw
        cb(i,a,d)

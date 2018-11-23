@@ -104,3 +104,9 @@ cfg.predict_to_directory("D:/pics/test","D:/pics/arr1", [0, 1, 4, 2], 1, ttflips
 cfg.predict_to_directory("D:/pics/test", "D:/pics/arr", [0, 1, 4, 2], 2, ttflips=True, binaryArray=True)
 segmentation.ansemblePredictions("D:/pics/test",["D:/pics/arr/","D:/pics/arr1/"],onPredict,d)
 ``` 
+
+#### How to train on multiple gpus?
+
+```python
+cfg.gpus=4 #or another number matching to the count of gpus that you have
+``` 
