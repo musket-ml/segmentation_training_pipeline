@@ -4,7 +4,7 @@
   * [Installation](#installation)
   * [Usage guide](#usage-guide)
     + [Training a model](#training-a-model)
-      - [Image/Mask Augmentations](#augmentation)
+      - [Image/Mask Augmentations](#image/mask-augmentations)
       - [Freezing/Unfreezing encoder](#freezing/unfreezing-encoder)
       - [Custom datasets](#custom-datasets)      
       - [Balancing your data](#balancing-your-data)
