@@ -4,8 +4,8 @@
   * [Installation](#installation)
   * [Usage guide](#usage-guide)
     + [Training a model](#training-a-model)
-      - [Image/Mask Augmentations](#image/mask-augmentations)
-      - [Freezing/Unfreezing encoder](#freezing/unfreezing-encoder)
+      - [Image/Mask Augmentations](#image_and_mask-augmentations)
+      - [Freezing/Unfreezing encoder](#freezing_and_unfreezing-encoder)
       - [Custom datasets](#custom-datasets)      
       - [Balancing your data](#balancing-your-data)
       - [Multistage training](#multistage-training)
@@ -106,7 +106,7 @@ What does this code actually do behind the scenes?
    be stored in the folders just near your `config.yaml`;
 -  All your folds are initialized from fixed default seed, so different experiments will use exactly the same train/validation splits     
 
-#### Image/Mask Augmentations
+#### Image and Mask Augmentations
 
 Framework uses awesome [imgaug](https://github.com/aleju/imgaug) library for augmentation, so you only need to configure your augmentation process in declarative way like in the following example:
  
@@ -123,7 +123,7 @@ augmentation:
     shear: [-16, 16] #random shears on -16,16 degrees
 ```
 
-#### Freezing/Unfreezing encoder
+#### Freezing and Unfreezing encoder
 
 Freezing encoder is often used with transfer learning. If you want to start with frozen encoder just add
 
