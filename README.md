@@ -26,17 +26,17 @@
 
 ## Motivation
 
-Idea for this project came from my first attempts to participate in Kaggle competitions. My programmers heart was painfully damaged by looking on my own code as well as on other people kernels. Code was highly repetitive, suffering from numerous reimplementation of same or almost same things through the kernels, model/experiment configuration was often mixed with models code, in other words from programmer perspective it all looked horrible. 
+Idea for this project came from my first attempts to participate in Kaggle competitions. My programmers heart was painfully damaged by looking on my own code as well as on other people kernels. Code was highly repetitive, suffering from numerous reimplementations of same or almost same things through the kernels, model/experiment configuration was often mixed with models code, in other words - from programmer perspective it all looked horrible. 
 
-So I decided to extract repetitive things into framework that will work at least for me, and that will follow these statements: 
+So I decided to extract repetitive things into framework that will work at least for me and will follow these statements: 
  - experiment configurations should be cleanly separated from model definitions;
- - experiment configuration files should be easy to compare, and should fully describe experiment that is being performed except of the dataset;
-- common blocks like an architecture, callbacks, storing model metrics, visualizing network predictions, should be written once and should be a part of common library
+ - experiment configuration files should be easy to compare and should fully describe experiment that is being performed except for the dataset;
+- common blocks like an architecture, callbacks, storing model metrics, visualizing network predictions, should be written once and be a part of common library
 
 
 ## Installation
 
-At this moment library requires the latest version of imgaug which is not yet published to pip, so installation requires
+At this moment library requires the latest version of imgaug which has not been published yet to pip, so installation requires
 execution of following two commands 
 ```
 pip install git+https://github.com/aleju/imgaug
@@ -49,8 +49,8 @@ pip install segmentation_pipeline
 ### Training a model
 
 Let's start from the absolutely minimalistic example. Let's say that you have two folders, one of them contains
-jpeg images, and another one - png files with segmentation masks for them. And you need to train a neural network
-that will do segmentation for you. In this extremly simple setup all that you need to do is to type following 5
+jpeg images, and another one - png files with segmentation masks for these images. And you need to train a neural network
+that will do segmentation for you. In this extremely simple setup all that you need is to type following 5
 lines of python code:
 ```python
 from segmentation_pipeline.impl.datasets import SimplePNGMaskDataSet
@@ -95,15 +95,15 @@ stages:
   - epochs: 100 #Let's go for 100 epochs
 ```
 
-So as you see, we have decomposed our task in two parts, *code that actually trains model* and *experiment configuration*,
-which determines model and how it should be trained from the set of predefined building blocks.
+So as you see, we have decomposed our task in two parts, *code that actually trains the model* and *experiment configuration*,
+which determines the model and how it should be trained from the set of predefined building blocks.
  
 What does this code actually do behind the scenes?
 
 -  it splits your data into 5 folds, and trains one model per fold;
--  it takes care about model checkpointing, generates example image/mask/segmentation triples, collects training metrics. All this data will
+-  it takes care of model checkpointing, generates example image/mask/segmentation triples, collects training metrics. All this data will
    be stored in the folders just near your `config.yaml`;
--  All your folds are initialized from fixed default seed, so different experiments will use exactly same train/validation splits     
+-  All your folds are initialized from fixed default seed, so different experiments will use exactly the same train/validation splits     
 
 #### Image/Mask Augmentations
 
@@ -135,7 +135,7 @@ stages:
     unfreeze_encoder: true  
 ```
 
-in your experiments configuration, then on some stage configuration just add:
+in your experiments configuration, then on some stage configuration just add
 
 ```yaml
 unfreeze_encoder: true
@@ -148,7 +148,7 @@ to stage settings.
 #### Custom datasets
 
 Training data and masks are not necessarily stored in files, so sometimes you need to declare your own dataset class,
-for example the following code was used in my experiments with [Airbus ship detection challenge](https://www.kaggle.com/c/airbus-ship-detection/overview)
+for example, the following code was used in my experiments with [Airbus ship detection challenge](https://www.kaggle.com/c/airbus-ship-detection/overview)
 to decode segmentation masks from rle encoded strings stored in csv file 
 
 ```python
@@ -185,7 +185,7 @@ class SegmentationRLE:
 #### Balancing your data
 
 One common case is the situation when part of your images does not contain any objects of interest, like in 
-[Airbus ship detection challenge](https://www.kaggle.com/c/airbus-ship-detection/overview), more over your data may
+[Airbus ship detection challenge](https://www.kaggle.com/c/airbus-ship-detection/overview). More over your data may
 be to heavily inbalanced, so you may want to rebalance it. Alternatively you may want to inject some additional
 images that do not contain objects of interest to decrease amount of false positives that will be produced by the framework.
     
@@ -197,7 +197,7 @@ these settings accept following values:
 - integer number(1 or 2 or anything), how many negative examples should be included per one positive example   
 
 if you are using this setting your dataset class must support `isPositive` method which returns true for indexes
-that contain positive examples: 
+which contain positive examples: 
 
 ```python        
     def isPositive(self, item):
@@ -230,28 +230,28 @@ stages:
     initial_weights: ./fpn-resnext2/weights/best-0.1.weights #let's load weights from this file    
 ```
 
-stage entries allow you to configure custom learning rate, balance of negative examples, callbacks, loss function
-and even initial weights that should be used on a particular stage.
+Stage entries allow you to configure custom learning rate, balance of negative examples, callbacks, loss function
+and even initial weights which should be used on a particular stage.
 
 #### Composite losses
 
-Framework supports composing loss as a weighted sum of predefined loss functions. For example following construction
+Framework supports composing loss as a weighted sum of predefined loss functions. For example, following construction
 ```yaml
 loss: binary_crossentropy+0.1*dice_loss
 ```
-will result in loss function which is composed from `binary_crossentropy` and  `dice_loss` functions
+will result in loss function which is composed from `binary_crossentropy` and  `dice_loss` functions.
 
 #### Cyclical learning rates
 
 ![Example](https://github.com/bckenstler/CLR/blob/master/images/triangularDiag.png?raw=true)
 
-As told in [Cyclical learning rates for training neural networks](https://arxiv.org/abs/1506.01186) CLR policies can provide quicker converge for some neural network tasks and architectures 
+As told in [Cyclical learning rates for training neural networks](https://arxiv.org/abs/1506.01186) CLR policies can provide quicker converge for some neural network tasks and architectures. 
 
 ![Example2](https://github.com/bckenstler/CLR/raw/master/images/cifar.png)
 
-We support them by adopting Brad Kenstler [CLR callback](https://github.com/bckenstler/CLR) for Keras
+We support them by adopting Brad Kenstler [CLR callback](https://github.com/bckenstler/CLR) for Keras.
 
-If you want to use them just add `CyclicLR` in your experiment configuration file as shown in this example: 
+If you want to use them, just add `CyclicLR` in your experiment configuration file as shown below: 
 
 ```yaml
 callbacks:
@@ -288,7 +288,7 @@ will result in this couple of helpful images:
 #### Background Augmenter
 
 One interesting augentation option when doing background removal task is replacing backgrounds with random 
-images, we support this with `BackgroundReplacer` augmenter:
+images. We support this with `BackgroundReplacer` augmenter:
 
 ```yaml
 augmentation:
@@ -307,7 +307,7 @@ that you need to do is to specify number of splits per axis. For example, follow
 shape: [768, 768, 3]
 crops: 3
 ``` 
-will lead to splitting each image/mask on 9 cells (3 horizontal splits and 3 vertical splits) and training model on these splits.
+will lead to splitting each image/mask into 9 cells (3 horizontal splits and 3 vertical splits) and training model on these splits.
 Augmentations will be run separately on each cell.
 
 
@@ -348,13 +348,13 @@ df.to_csv('baseline_submission.csv', index=False)
 ``` 
 #### Ensembling predictions
 
-Okey, what if you want to ensemble model from several folds? Just pass a list of fold numbers to
-`predict_in_directory` like in the following examples:
+And what if you want to ensemble models from several folds? Just pass a list of fold numbers to
+`predict_in_directory` like in the following example:
 
 ```python
 cfg.predict_in_directory("D:/images_to_segment", [0,1,2,3,4], onPredict, {"pred": predictions, "images": images})
 ```
-Another supported option is to ensemble results from extra test time augmentation (flips) by adding keyword arg `ttflips=True`
+Another supported option is to ensemble results from extra test time augmentation (flips) by adding keyword arg `ttflips=True`.
   
 ### Custom evaluation code
 
@@ -373,7 +373,7 @@ for batch in cfg.evaluateAll(ds,2):
 ```
 
 ### Accessing model
-You may get trained keras model by calling: ```cfg.load_model(fold, stage)```
+You may get trained keras model by calling: ```cfg.load_model(fold, stage)```.
 
 ## Analyzing experiments results
 
@@ -399,39 +399,43 @@ python analize.py --inputFolder ./experiments --output ./result.py
 
 At this moment segmentation pipeline supports following architectures:
 
-- Unet
-- Linknet
-- PSP
-- FPN
-- DeeplabV3
+- [Unet](https://lmb.informatik.uni-freiburg.de/people/ronneber/u-net/)
+- [Linknet](https://codeac29.github.io/projects/linknet/)
+- [PSP](https://arxiv.org/abs/1612.01105)
+- [FPN](https://arxiv.org/abs/1612.03144)
+- [DeeplabV3](https://arxiv.org/abs/1706.05587)
 
 `FPN`, `PSP`, `Linkenet`, `UNet` architectures support following backbones: 
 
-  - vgg16 
-  - vgg19 
-  - resnet18
-  - resnet34
-  - resnet50 
-  - resnet101
-  - resnet152
-  - resnext50
-  - resnext101 
-  - densenet121
-  - densenet169
-  - densenet201
-  - inceptionv3 
-  - inceptionresnetv2
+  - [VGGNet](https://arxiv.org/abs/1409.1556)
+    - vgg16
+    - vgg19
+  - [ResNet](https://arxiv.org/abs/1512.03385)
+    - resnet18
+    - resnet34
+    - resnet50 
+    - resnet101
+    - resnet152
+  - [ResNext](https://arxiv.org/abs/1611.05431)
+    - resnext50
+    - resnext101
+  - [DenseNet](https://arxiv.org/abs/1608.06993)
+    - densenet121
+    - densenet169
+    - densenet201
+  - [Inception-v3](https://arxiv.org/abs/1512.00567)
+  - [Inception-ResNet-v2](https://arxiv.org/abs/1602.07261)
 
-All them support has support for the weights pretrained on imagenet:
+All them support the weights pretrained on [ImageNet](http://www.image-net.org/):
 ```yaml
 encoder_weights: imagenet
 ```
 
 At this moment `DeeplabV3` architecture supports following backbones:
- - mobilenetv2
- - xception
+ - [MobileNetV2](https://arxiv.org/abs/1801.04381)
+ - [Xception](https://arxiv.org/abs/1610.02357)
 
-Deeplab supports weights pretrained on pacal_voc
+Deeplab supports weights pretrained on [PASCAL VOC](http://host.robots.ox.ac.uk/pascal/VOC/):
 
 ```yaml
 encoder_weights: pascal_voc
@@ -439,27 +443,27 @@ encoder_weights: pascal_voc
 
 Each architecture also supports some specific options, list of options is documented in [segmentation RAML library](segmentation_pipeline/schemas/segmentation.raml#L166).
 
-Supported augmentations are documented in [augmentation RAML library](segmentation_pipeline/schemas/augmenters.raml)
+Supported augmentations are documented in [augmentation RAML library](segmentation_pipeline/schemas/augmenters.raml).
 
-Callbacks are documented in [callbacks RAML library](segmentation_pipeline/schemas/callbacks.raml)  
+Callbacks are documented in [callbacks RAML library](segmentation_pipeline/schemas/callbacks.raml).  
 
 ## Custom architectures, callbacks, metrics
 
 Segmentation pipeline uses keras custom objects registry to find entities, so if you need to use
-custom loss function,activation or metric all that you need to do is to register it in Keras as: 
+custom loss function, activation or metric all that you need to do is to register it in Keras as: 
 
 ```python
 keras.utils.get_custom_objects()["my_loss"]= my_loss
 ```
 
-If you want to inject new architecture, you need to register it in `segmentation.custom_models` dictionary
+If you want to inject new architecture, you should register it in `segmentation.custom_models` dictionary.
 
-for example:
+For example:
 ```python
 segmentation.custom.models['MyUnet']=MyUnet 
 ```
 where `MyUnet` is a function that accepts architecture parameters as arguments and returns an instance
-of keras model
+of keras model.
 
 ## Examples
 
