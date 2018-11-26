@@ -56,7 +56,7 @@ lines of python code:
 ```python
 from segmentation_pipeline.impl.datasets import SimplePNGMaskDataSet
 from segmentation_pipeline import  segmentation
-ds=SimplePNGMaskDataSet("D:/pics/train","D:/pics/train_mask")
+ds=SimplePNGMaskDataSet("./pics/train","./pics/train_mask")
 cfg = segmentation.parse("config.yaml")
 cfg.fit(ds)
 ```
@@ -294,7 +294,7 @@ images. We support this with `BackgroundReplacer` augmenter:
 ```yaml
 augmentation:
   BackgroundReplacer:
-    path: D:/bg #path to folder with backgrounds
+    path: ./bg #path to folder with backgrounds
     rate: 0.5 #fraction of original backgrounds to preserve
 
 ```
@@ -341,7 +341,7 @@ cfg= segmentation.parse("config.yaml")
 
 predictions = [],images = []
 #Now let's use best model from fold 0 to do image segmentation on images from images_to_segment
-cfg.predict_in_directory("D:/images_to_segment", 0, onPredict, {"pred": predictions, "images": images})
+cfg.predict_in_directory("./images_to_segment", 0, onPredict, {"pred": predictions, "images": images})
 
 #Let's store results in csv
 df = pd.DataFrame.from_dict({'image': images, 'rle_mask': predictions})
@@ -353,7 +353,7 @@ And what if you want to ensemble models from several folds? Just pass a list of 
 `predict_in_directory` like in the following example:
 
 ```python
-cfg.predict_in_directory("D:/images_to_segment", [0,1,2,3,4], onPredict, {"pred": predictions, "images": images})
+cfg.predict_in_directory("./images_to_segment", [0,1,2,3,4], onPredict, {"pred": predictions, "images": images})
 ```
 Another supported option is to ensemble results from extra test time augmentation (flips) by adding keyword arg `ttflips=True`.
   
@@ -479,7 +479,7 @@ If you would like to continue training after crash, call `setAllowResume` method
 ```python
 cfg= segmentation.parse("./people-1.yaml")
 cfg.setAllowResume(True)
-ds=SimplePNGMaskDataSet("D:/pics/train","D:/pics/train_mask")
+ds=SimplePNGMaskDataSet("./pics/train","./pics/train_mask")
 cfg.fit(ds)
 ```
 
@@ -497,7 +497,7 @@ segmentation_pipeline.impl.datasets.AUGMENTER_QUEUE_LIMIT = 3
 ```yaml
   BackgroundReplacer:
     rate: 0.5
-    path: D:/bg
+    path: ./bg
     augmenters: #this augmenters will run on original image before replacing background
       Affine:
         scale: [0.8, 1.5]
@@ -522,7 +522,7 @@ if will lead to generation of training images samples and storing them in exampl
 #### What I can do if i have some extra training data, that should not be included into validation, but should be used during the training?
 
 ```python
-extra_data=NotzeroSimplePNGMaskDataSet("D:/phaces/all","D:/phaces/masks") #My dataset that should be added to training
+extra_data=NotzeroSimplePNGMaskDataSet("./phaces/all","./phaces/masks") #My dataset that should be added to training
 segmentation.extra_train["people"] = extra_data
 ```   
 
@@ -572,9 +572,9 @@ One option to do this, is to store predictions for each file and model in numpy 
 like in the following sample:
 
 ```python
-cfg.predict_to_directory("D:/pics/test","D:/pics/arr1", [0, 1, 4, 2], 1, ttflips=True,binaryArray=True)
-cfg.predict_to_directory("D:/pics/test", "D:/pics/arr", [0, 1, 4, 2], 2, ttflips=True, binaryArray=True)
-segmentation.ansemblePredictions("D:/pics/test",["D:/pics/arr/","D:/pics/arr1/"],onPredict,d)
+cfg.predict_to_directory("./pics/test","./pics/arr1", [0, 1, 4, 2], 1, ttflips=True,binaryArray=True)
+cfg.predict_to_directory("./pics/test", "./pics/arr", [0, 1, 4, 2], 2, ttflips=True, binaryArray=True)
+segmentation.ansemblePredictions("./pics/test",["./pics/arr/","./pics/arr1/"],onPredict,d)
 ``` 
 
 #### How to train on multiple gpus?
