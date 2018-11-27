@@ -794,7 +794,7 @@ class DrawResults(keras.callbacks.Callback):
 
 keras.callbacks.CyclicLR=segmentation_pipeline.impl.clr_callback.CyclicLR
 
-def ansemblePredictions(sourceFolder,folders:[str],cb,d,weights=None):
+def ansemblePredictions(sourceFolder, folders:[str], cb, data, weights=None):
     if weights==None:
         weights=[]
         for f in folders:
@@ -812,4 +812,4 @@ def ansemblePredictions(sourceFolder,folders:[str],cb,d,weights=None):
             a=a+np.load(f+i[0:i.index(".")]+".npy")*weights[num]
            num=num+1
        a=a/sw
-       cb(i,a,d)
+       cb(i, a, data)
