@@ -307,7 +307,7 @@ class SimplePNGMaskDataSet:
     def __len__(self):
         return len(self.ids)
 
-AUGMENTER_QUEUE_LIMIT=50
+AUGMENTER_QUEUE_LIMIT=10
 
 class KFoldedDataSet:
 

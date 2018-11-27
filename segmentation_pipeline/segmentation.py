@@ -320,53 +320,43 @@ class PipelineConfig:
         ta = self.transformAugmentor()
         for v in datasets.DirectoryDataSet(path, batchSize).generator(limit):
             for z in ta.augment_batches([v]):
-                o1=np.array(z.images_aug);
-                res = mdl.predict(o1)
-                if ttflips:
-                    another=imgaug.augmenters.Fliplr(1.0).augment_images(z.images_aug);
-                    res1= mdl.predict(np.array(another))
-                    res1=imgaug.augmenters.Fliplr(1.0).augment_images(res1)
-
-                    another1 = imgaug.augmenters.Flipud(1.0).augment_images(z.images_aug);
-                    res2 = mdl.predict(np.array(another1))
-                    res2 = imgaug.augmenters.Flipud(1.0).augment_images(res2)
-
-                    seq=imgaug.augmenters.Sequential([imgaug.augmenters.Fliplr(1.0), imgaug.augmenters.Flipud(1.0)])
-                    another2 = seq.augment_images(z.images_aug);
-                    res3 = mdl.predict(np.array(another2))
-                    res3 = seq.augment_images(res3)
-
-                    res=(res+res1+res2+res3)/4.0
+                res = self.predict_on_batch(mdl, ttflips, z)
                 z.segmentation_maps_aug = [imgaug.SegmentationMapOnImage(x, x.shape) for x in res];
                 yield z
 
-    def predict_on_directory_with_model(self, mdl,path, limit=-1, batchSize=32,ttflips=False):
+    def predict_on_batch(self, mdl, ttflips, z):
 
+        o1 = np.array(z.images_aug);
+
+        res = mdl.predict(o1)
+        if ttflips == "Horizontal":
+            another = imgaug.augmenters.Fliplr(1.0).augment_images(z.images_aug);
+            res1 = mdl.predict(np.array(another))
+            res1 = imgaug.augmenters.Fliplr(1.0).augment_images(res1)
+            res = (res + res1) / 2.0
+        elif ttflips:
+            another = imgaug.augmenters.Fliplr(1.0).augment_images(z.images_aug);
+            res1 = mdl.predict(np.array(another))
+            res1 = imgaug.augmenters.Fliplr(1.0).augment_images(res1)
+
+            another1 = imgaug.augmenters.Flipud(1.0).augment_images(z.images_aug);
+            res2 = mdl.predict(np.array(another1))
+            res2 = imgaug.augmenters.Flipud(1.0).augment_images(res2)
+
+            seq = imgaug.augmenters.Sequential([imgaug.augmenters.Fliplr(1.0), imgaug.augmenters.Flipud(1.0)])
+            another2 = seq.augment_images(z.images_aug);
+            res3 = mdl.predict(np.array(another2))
+            res3 = seq.augment_images(res3)
+
+            res = (res + res1 + res2 + res3) / 4.0
+        return res
+
+    def predict_on_directory_with_model(self, mdl,path, limit=-1, batchSize=32,ttflips=False):
         ta = self.transformAugmentor()
         with tqdm.tqdm(total=len(self.dir_list(path)), unit="files", desc="classifying positive  images from " + path) as pbar:
             for v in datasets.DirectoryDataSet(path, batchSize).generator(limit):
                 for z in ta.augment_batches([v]):
-                    o1=np.array(z.images_aug);
-                    res = mdl.predict(o1)
-                    if ttflips=="Horizontal":
-                        another = imgaug.augmenters.Fliplr(1.0).augment_images(z.images_aug);
-                        res1 = mdl.predict(np.array(another))
-                        res = (res + res1) / 2.0
-                    elif ttflips:
-                        another=imgaug.augmenters.Fliplr(1.0).augment_images(z.images_aug);
-                        res1= mdl.predict(np.array(another))
-
-
-                        another1 = imgaug.augmenters.Flipud(1.0).augment_images(z.images_aug);
-                        res2 = mdl.predict(np.array(another1))
-
-
-                        seq=imgaug.augmenters.Sequential([imgaug.augmenters.Fliplr(1.0), imgaug.augmenters.Flipud(1.0)])
-                        another2 = seq.augment_images(z.images_aug);
-                        res3 = mdl.predict(np.array(another2))
-
-
-                        res=(res+res1+res2+res3)/4.0
+                    res = self.predict_on_batch(mdl,ttflips,z)
                     z.predictions = res;
                     pbar.update(batchSize)
                     yield z
@@ -495,7 +485,7 @@ class PipelineConfig:
     def createAndCompile(self, lr=None, loss=None):
         return self.compile(self.createNet(), self.createOptimizer(lr=lr), loss=loss);
 
-    def evaluateAll(self,ds, fold:int,stage=-1,negatives="real"):
+    def evaluateAll(self,ds, fold:int,stage=-1,negatives="real",ttflips=None):
         folds = self.kfold(ds, range(0, len(ds)))
         vl, vg, test_g = folds.generator(fold, False,negatives=negatives,returnBatch=True);
         indexes = folds.sampledIndexes(fold, False, negatives)
@@ -506,7 +496,7 @@ class PipelineConfig:
                 for f in test_g():
                     if num>=len(indexes): break
                     x, y, b = f
-                    z = m.predict(x)
+                    z = self.predict_on_batch(m,ttflips,b)
                     ids=[]
                     augs=[]
                     for i in range(0,len(z)):
