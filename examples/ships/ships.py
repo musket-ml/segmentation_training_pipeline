@@ -101,11 +101,7 @@ def main():
 
             exists[v.data[i]]=v.predictions[i]
     print(goodC)
-    #cfg0.fit_classifier(ds,2,mdl,12,stage=22)
 
-
-
-    #print("A")
     num=0;
 
 

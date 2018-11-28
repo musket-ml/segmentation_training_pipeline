@@ -8,7 +8,6 @@ import imgaug
 warnings.warn=old
 import os
 import keras
-import random
 import imageio
 import numpy as np
 import traceback
@@ -37,16 +36,8 @@ class DataSetLoader:
         while True:
             if i == len(self.indeces):
                 i = 0
-            id=""
             try:
-                if hasattr(self.dataset,"item"):
-
-                    item = self.dataset.item(self.indeces[i],self.isTrain)
-                else: item = self.dataset[self.indeces[i]]
-                x, y = item.x, item.y
-                if isinstance(item,PredictionItem):
-                    id=item.id
-
+                id, x, y = self.proceed(i)
             except:
                 traceback.print_exc()
                 i = i + 1
@@ -56,38 +47,55 @@ class DataSetLoader:
             bx.append(x)
             by.append(y)
             if len(bx) == self.batchSize:
-
-                yield imgaug.imgaug.Batch(data=ids,images=bx,
-                                              segmentation_maps=[imgaug.SegmentationMapOnImage(x, shape=x.shape) for x
-                                                                 in by])
+                yield self.createBatch(bx, by, ids)
                 bx = []
                 by = []
                 ids= []
+
+    def createBatch(self, bx, by, ids):
+        if len(by[0].shape)>1:
+            return imgaug.imgaug.Batch(data=ids, images=bx,
+                                       segmentation_maps=[imgaug.SegmentationMapOnImage(x, shape=x.shape) for x
+                                                          in by])
+        else:
+            r=imgaug.imgaug.Batch(data=[ids,by], images=bx)
+            return r
 
     def load(self):
         i=0;
         bx=[]
         by=[]
+        ids = []
         while True:
             if (i==len(self.indeces)):
                 i=0;
             try:
-                if hasattr(self.dataset,"item"):
-                    item = self.dataset.item(self.indeces[i],self.isTrain)
-                else: item=self.dataset[self.indeces[i]]
-                x,y=item.x,item.y
+                id, x, y = self.proceed(i)
             except:
                 traceback.print_exc()
                 i = i + 1;
                 continue
-            i=i+1;
+            ids.append(id)
             bx.append(x)
             by.append(y)
-            if len(bx)==self.batchSize:
+            i=i+1;
 
-                return imgaug.imgaug.Batch(images=bx,segmentation_maps=[imgaug.SegmentationMapOnImage(x,shape=x.shape) for x in  by])
+            if len(bx)==self.batchSize:
+                return self.createBatch(bx,by,ids)
                 bx = [];
                 by = [];
+
+    def proceed(self, i):
+        id = ""
+        if hasattr(self.dataset, "item"):
+            item = self.dataset.item(self.indeces[i], self.isTrain)
+        else:
+            item = self.dataset[self.indeces[i]]
+        x, y = item.x, item.y
+        if isinstance(item, PredictionItem):
+            id = item.id
+        return id, x, y
+
 
 def drawBatch(batch,path):
     cells = []
@@ -309,6 +317,8 @@ class SimplePNGMaskDataSet:
 
 AUGMENTER_QUEUE_LIMIT=10
 
+
+
 class KFoldedDataSet:
 
     def __init__(self,ds,indexes,aug,transforms,folds=5,rs=33,batchSize=16):
@@ -376,7 +386,7 @@ class KFoldedDataSet:
 
         return l,g,r
 
-    def classification_generator_from_indexes(self, indexes,isTrain=True):
+    def positive_negative_classification_generator_from_indexes(self, indexes, isTrain=True):
         m = DataSetLoader(self.ds, indexes, self.batchSize,isTrain=isTrain).generator
         aug = self.augmentor(isTrain)
         l = imgaug.imgaug.BatchLoader(m)
@@ -410,13 +420,11 @@ class KFoldedDataSet:
 
     def sampledIndexes(self, foldNum, isTrain, negatives):
         indexes = self.indexes(foldNum, isTrain)
-
         if negatives == 'none':
             indexes = [x for x in indexes if self.inner_isPositive(x)]
         if type(negatives)==int:
             sindexes = []
             nindexes = []
-
             for x in indexes:
                 if self.inner_isPositive(x):
                     sindexes.append(x)
@@ -455,3 +463,57 @@ class KFoldedDataSet:
             tg.terminate();
             vl.terminate();
             vg.terminate();
+
+
+class KFoldedDataSetImageClassification(KFoldedDataSet):
+
+    def generator_from_indexes(self, indexes,isTrain=True,returnBatch=False):
+        m = DataSetLoader(self.ds, indexes, self.batchSize,isTrain=isTrain).generator
+        aug = self.augmentor(isTrain)
+        l = imgaug.imgaug.BatchLoader(m)
+        g = imgaug.imgaug.BackgroundAugmenter(l, augseq=aug,queue_size=AUGMENTER_QUEUE_LIMIT)
+
+        def r():
+            num = 0;
+            while True:
+                r = g.get_batch();
+                x,y= np.array(r.images_aug), np.array([x for x in r.data[1]])
+                num=num+1
+                if returnBatch:
+                    yield x,y,r
+                else: yield x,y
+
+        return l,g,r
+
+
+class CropAndSplit:
+    def __init__(self,orig,n):
+        self.ds=orig
+        self.parts=n
+        self.lastPos=None
+
+    def isPositive(self, item):
+        pos = item // (self.parts * self.parts);
+        return self.ds.isPositive(pos)
+
+    def __getitem__(self, item):
+        pos=item//(self.parts*self.parts);
+        off=item%(self.parts*self.parts)
+        if pos==self.lastPos:
+            dm=self.lastImage
+        else:
+            dm=self.ds[pos]
+            self.lastImage=dm
+        row=off//self.parts
+        col=off%self.parts
+        x,y=dm.x,dm.y
+        x1,y1= self.crop(row,col,x),self.crop(row,col,y)
+        return PredictionItem(dm.id,x1,y1)
+
+    def crop(self,y,x,image):
+        h=image.shape[0]//self.parts
+        w = image.shape[1] // self.parts
+        return image[h*y:h*(y+1),w*x:w*(x+1), :]
+
+    def __len__(self):
+        return len(self.ds)*self.parts*self.parts
