@@ -19,7 +19,7 @@ def rle_encode(img):
     return ' '.join(str(x) for x in runs)
 
 
-def rle_decode(mask_rle, shape=(768, 768)):
+def rle_decode(mask_rle, shape):
     '''
     mask_rle: run-length as string formated (start length)
     shape: (height,width) of array to return
@@ -35,20 +35,20 @@ def rle_decode(mask_rle, shape=(768, 768)):
     return img.reshape(shape).T  # Needed to align to RLE direction
 
 
-def masks_as_image(in_mask_list):
+def masks_as_image(in_mask_list,shape):
     # Take the individual ship masks and create a single mask array for all ships
-    all_masks = np.zeros((768, 768), dtype = np.int16)
+    all_masks = np.zeros(shape, dtype = np.int16)
     for mask in in_mask_list:
         if isinstance(mask, str):
-            r=rle_decode(mask);
+            r=rle_decode(mask,shape);
             all_masks += rle_decode(mask)
     return np.expand_dims(all_masks, -1)
 
-def masks_as_images(in_mask_list):
+def masks_as_images(in_mask_list,shape):
     # Take the individual ship masks and create a single mask array for all ships
     all_masks = []
     for mask in in_mask_list:
         if isinstance(mask, str):
             r=rle_decode(mask);
-            all_masks.append(rle_decode(mask).astype(np.float32))
+            all_masks.append(rle_decode(mask,shape).astype(np.float32))
     return all_masks

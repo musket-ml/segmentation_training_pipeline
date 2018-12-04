@@ -1,29 +1,24 @@
 import imgaug
 import segmentation_models
-import pandas as pd
 import numpy as np
 import tqdm
 from segmentation_models.utils import set_trainable
 import keras
-from segmentation_pipeline.impl import datasets, configloader
+from musket_core import configloader, datasets
 import os
-import segmentation_pipeline.impl.losses
-import segmentation_pipeline.impl.focal_loss
+import musket_core.losses
 import imageio
-from segmentation_pipeline.impl.clr_callback import  CyclicLR
+keras.utils.get_custom_objects()["dice"]= musket_core.losses.dice
+keras.utils.get_custom_objects()["iou"]= musket_core.losses.iou_coef
+keras.utils.get_custom_objects()["iot"]= musket_core.losses.iot_coef
+keras.utils.get_custom_objects()["lovasz_loss"]= musket_core.losses.lovasz_loss
+keras.utils.get_custom_objects()["iou_loss"]= musket_core.losses.iou_coef_loss
+keras.utils.get_custom_objects()["dice_loss"]= musket_core.losses.dice_coef_loss
+keras.utils.get_custom_objects()["jaccard_loss"]= musket_core.losses.jaccard_distance_loss
+keras.utils.get_custom_objects()["focal_loss"]= musket_core.losses.focal_loss
 
-keras.utils.get_custom_objects()["dice"]= segmentation_pipeline.impl.losses.dice
-keras.utils.get_custom_objects()["iou"]= segmentation_pipeline.impl.losses.iou_coef
-keras.utils.get_custom_objects()["iot"]= segmentation_pipeline.impl.losses.iot_coef
-keras.utils.get_custom_objects()["lovasz_loss"]= segmentation_pipeline.impl.losses.lovasz_loss
-keras.utils.get_custom_objects()["iou_loss"]= segmentation_pipeline.impl.losses.iou_coef_loss
-keras.utils.get_custom_objects()["dice_loss"]= segmentation_pipeline.impl.losses.dice_coef_loss
-keras.utils.get_custom_objects()["jaccard_loss"]= segmentation_pipeline.impl.losses.jaccard_distance_loss
-keras.utils.get_custom_objects()["focal_loss"]= segmentation_pipeline.impl.focal_loss.focal_loss
 from segmentation_pipeline.impl.deeplab import model as dlm
-import keras.applications as app
-
-import segmentation_pipeline.impl.generic_config as generic
+import musket_core.generic_config as generic
 
 ansemblePredictions=generic.ansemblePredictions
 dataset_augmenters=generic.dataset_augmenters
@@ -32,6 +27,7 @@ extra_train=generic.extra_train
 custom_models={
     "DeepLabV3":dlm.Deeplabv3
 }
+
 
 class PipelineConfig(generic.GenericConfig):
 
@@ -52,7 +48,7 @@ class PipelineConfig(generic.GenericConfig):
 
     def  __init__(self,**atrs):
         super().__init__(**atrs)
-        self.dataset_clazz =datasets.KFoldedDataSet
+        self.dataset_clazz = datasets.KFoldedDataSet
         self.flipPred=False
         pass
 
@@ -63,7 +59,7 @@ class PipelineConfig(generic.GenericConfig):
     def predict_to_directory(self, spath, tpath,fold=0, stage=0, limit=-1, batchSize=32,binaryArray=False,ttflips=False):
         generic.ensure(tpath)
         with tqdm.tqdm(total=len(generic.dir_list(spath)), unit="files", desc="segmentation of images from " + str(spath) + " to " + str(tpath)) as pbar:
-            for v in self.predict_on_directory(spath,fold=fold, stage=stage, limit=limit, batchSize=batchSize,ttflips=ttflips):
+            for v in self.predict_on_directory(spath, fold=fold, stage=stage, limit=limit, batch_size=batchSize, ttflips=ttflips):
                 b:imgaug.Batch=v;
                 for i in range(len(b.data)):
                     id=b.data[i];
@@ -81,7 +77,7 @@ class PipelineConfig(generic.GenericConfig):
 
     def predict_in_directory(self, spath, fold, stage,cb, data,limit=-1, batchSize=32,ttflips=False):
         with tqdm.tqdm(total=len(generic.dir_list(spath)), unit="files", desc="segmentation of images from " + str(spath)) as pbar:
-            for v in self.predict_on_directory(spath,fold=fold, stage=stage, limit=limit, batchSize=batchSize,ttflips=ttflips):
+            for v in self.predict_on_directory(spath, fold=fold, stage=stage, limit=limit, batch_size=batchSize, ttflips=ttflips):
                 b:imgaug.Batch=v;
                 for i in range(len(b.data)):
                     id=b.data[i];
@@ -117,14 +113,14 @@ class PipelineConfig(generic.GenericConfig):
             model1=clazz(**copy);
             cleaned["encoder_weights"]=None
             model=clazz(**cleaned)
-            self.adaptNet(model,model1);
+            self.adaptNet(model,model1,self.copyWeights);
             model.save_weights(self.path + ".mdl-nchannel")
             return model
         return clazz(**cleaned)
 
     def evaluateAll(self,ds, fold:int,stage=-1,negatives="real",ttflips=None):
         folds = self.kfold(ds, range(0, len(ds)))
-        vl, vg, test_g = folds.generator(fold, False,negatives=negatives,returnBatch=True);
+        vl, vg, test_g = folds.generator(fold, False,negatives=negatives,returnBatch=True)
         indexes = folds.sampledIndexes(fold, False, negatives)
         m = self.load_model(fold, stage)
         num=0
@@ -142,7 +138,7 @@ class PipelineConfig(generic.GenericConfig):
                         num = num + 1
                         ma=z[i]
                         id=b.data[i]
-                        segmentation_maps_aug = [imgaug.SegmentationMapOnImage(ma, ma.shape)];
+                        segmentation_maps_aug = [imgaug.SegmentationMapOnImage(ma, ma.shape)]
                         augmented = imgaug.augmenters.Scale(
                                     {"height": orig.shape[0], "width": orig.shape[1]}).augment_segmentation_maps(segmentation_maps_aug)
                         ids.append(id)
@@ -153,8 +149,8 @@ class PipelineConfig(generic.GenericConfig):
                     yield res
                     pbar.update(len(ids))
             finally:
-                vl.terminate();
-                vg.terminate();
+                vl.terminate()
+                vg.terminate()
         pass
 
 
@@ -202,5 +198,3 @@ class SegmentationStage(generic.Stage):
 
     def unfreeze(self, model):
         set_trainable(model)
-
-keras.callbacks.CyclicLR=segmentation_pipeline.impl.clr_callback.CyclicLR
