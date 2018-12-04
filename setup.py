@@ -10,5 +10,5 @@ setup(name='segmentation_pipeline',
       packages=setuptools.find_packages(),
       include_package_data=True,
       dependency_links=['https://github.com/aleju/imgaug'],
-      install_requires=["musket_core>=0.24"],
+      install_requires=["musket_core>=0.25"],
       zip_safe=False)
