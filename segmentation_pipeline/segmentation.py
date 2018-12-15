@@ -88,6 +88,11 @@ class PipelineConfig(generic.GenericConfig):
                 pbar.update(batchSize)
 
     def createNet(self):
+        ac = self.all["activation"];
+        if ac == "none":
+            ac = None
+
+        self.all["activation"]=ac;
         if self.architecture in custom_models:
             clazz=custom_models[self.architecture]
         else: clazz = getattr(segmentation_models, self.architecture)
