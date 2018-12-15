@@ -41,7 +41,7 @@ def masks_as_image(in_mask_list,shape):
     for mask in in_mask_list:
         if isinstance(mask, str):
             r=rle_decode(mask,shape);
-            all_masks += rle_decode(mask)
+            all_masks += rle_decode(mask,shape)
     return np.expand_dims(all_masks, -1)
 
 def masks_as_images(in_mask_list,shape):
@@ -49,6 +49,6 @@ def masks_as_images(in_mask_list,shape):
     all_masks = []
     for mask in in_mask_list:
         if isinstance(mask, str):
-            r=rle_decode(mask);
+            r=rle_decode(mask,shape);
             all_masks.append(rle_decode(mask,shape).astype(np.float32))
     return all_masks
