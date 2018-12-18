@@ -339,9 +339,10 @@ def onPredict(file_name, img, data):
 
 cfg= segmentation.parse("config.yaml")
 
-predictions = [],images = []
+predictions = []
+images = []
 #Now let's use best model from fold 0 to do image segmentation on images from images_to_segment
-cfg.predict_in_directory("./images_to_segment", 0, onPredict, {"pred": predictions, "images": images})
+cfg.predict_in_directory("./images_to_segment", 0, 0, onPredict, {"pred": predictions, "images": images})
 
 #Let's store results in csv
 df = pd.DataFrame.from_dict({'image': images, 'rle_mask': predictions})
