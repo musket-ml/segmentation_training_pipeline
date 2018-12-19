@@ -49,7 +49,7 @@ class PipelineConfig(generic.GenericConfig):
     def  __init__(self,**atrs):
         super().__init__(**atrs)
         self.dataset_clazz = datasets.KFoldedDataSet
-        self.flipPred=False
+        self.flipPred=True
         pass
 
     def update(self,z,res):
