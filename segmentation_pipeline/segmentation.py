@@ -48,7 +48,7 @@ class PipelineConfig(generic.GenericConfig):
 
     def  __init__(self,**atrs):
         super().__init__(**atrs)
-        self.dataset_clazz = datasets.KFoldedDataSet
+        self.dataset_clazz = datasets.ImageKFoldedDataSet
         self.flipPred=True
         pass
 
