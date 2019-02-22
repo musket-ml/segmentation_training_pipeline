@@ -29,7 +29,7 @@ custom_models={
 }
 
 
-class PipelineConfig(generic.GenericConfig):
+class PipelineConfig(generic.GenericImageTaskConfig):
 
     def evaluate(self, d, fold, stage, negatives="all", limit=16):
         mdl = self.load_model(fold, stage)
