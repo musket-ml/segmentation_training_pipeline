@@ -29,7 +29,7 @@ custom_models={
 }
 
 
-class PipelineConfig(generic.GenericConfig):
+class PipelineConfig(generic.GenericImageTaskConfig):
 
     def evaluate(self, d, fold, stage, negatives="all", limit=16):
         mdl = self.load_model(fold, stage)
@@ -48,7 +48,7 @@ class PipelineConfig(generic.GenericConfig):
 
     def  __init__(self,**atrs):
         super().__init__(**atrs)
-        self.dataset_clazz = datasets.KFoldedDataSet
+        self.dataset_clazz = datasets.ImageKFoldedDataSet
         self.flipPred=False
         pass
 
@@ -167,7 +167,7 @@ def parse(path) -> PipelineConfig:
 
 class DrawResults(keras.callbacks.Callback):
 
-    def __init__(self,cfg,folds,fold,stage,negatives,limit=16,train=False):
+    def __init__(self,cfg,folds,fold,stage,negatives,limit=16,train=False, drawingFunction = datasets.draw_test_batch):
             if train:
                 self.ta = folds.augmentor(isTrain=True)
             else: self.ta = cfg.transformAugmentor()
@@ -176,6 +176,7 @@ class DrawResults(keras.callbacks.Callback):
             self.cfg=cfg
             self.train=train
             self.rs = folds.load(fold, train, negatives, limit)
+            self.drawingFunction = drawingFunction
             pass
 
     def on_epoch_end(self, epoch, logs=None):
@@ -189,17 +190,17 @@ class DrawResults(keras.callbacks.Callback):
             dr=os.path.join(os.path.dirname(self.cfg.path),"examples", str(self.stage), str(self.fold))
             generic.ensure(dr)
             if self.train:
-                datasets.draw_test_batch(i, os.path.join(dr, "t_epoch_train" + str(epoch) + "." + str(num) + '.jpg'))
-            else: datasets.draw_test_batch(i, os.path.join(dr, "t_epoch_" + str(epoch) + "." + str(num) + '.jpg'))
+                self.drawingFunction(i, os.path.join(dr, "t_epoch_train" + str(epoch) + "." + str(num) + '.jpg'))
+            else: self.drawingFunction(i, os.path.join(dr, "t_epoch_" + str(epoch) + "." + str(num) + '.jpg'))
             num = num + 1
         pass
 
 class SegmentationStage(generic.Stage):
 
     def add_visualization_callbacks(self, cb, ec, kf):
-        cb.append(DrawResults(self.cfg, kf, ec.fold, ec.stage, negatives=self.negatives))
+        cb.append(DrawResults(self.cfg, kf, ec.fold, ec.stage, negatives=self.negatives, drawingFunction=ec.drawingFunction))
         if self.cfg.showDataExamples:
-            cb.append(DrawResults(self.cfg, kf, ec.fold, ec.stage, negatives=self.negatives, train=True))
+            cb.append(DrawResults(self.cfg, kf, ec.fold, ec.stage, negatives=self.negatives, train=True, drawingFunction=ec.drawingFunction))
 
     def unfreeze(self, model):
         set_trainable(model)
