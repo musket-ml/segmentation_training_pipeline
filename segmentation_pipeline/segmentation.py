@@ -28,7 +28,6 @@ custom_models={
     "DeepLabV3":dlm.Deeplabv3
 }
 
-
 class PipelineConfig(generic.GenericImageTaskConfig):
 
     def evaluate(self, d, fold, stage, negatives="all", limit=16):
@@ -102,7 +101,10 @@ class PipelineConfig(generic.GenericImageTaskConfig):
         for arg in self.all:
             pynama = t.alias(arg);
             if not arg in r:
-                cleaned[pynama] = self.all[arg];
+                cleaned[pynama] = self.all[arg]
+
+        self.clean(cleaned)
+
         if self.crops is not None:
             cleaned["input_shape"]=(cleaned["input_shape"][0]//self.crops,cleaned["input_shape"][1]//self.crops,cleaned["input_shape"][2])
 
