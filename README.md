@@ -104,7 +104,9 @@ What does this code actually do behind the scenes?
 -  it splits your data into 5 folds, and trains one model per fold;
 -  it takes care of model checkpointing, generates example image/mask/segmentation triples, collects training metrics. All this data will
    be stored in the folders just near your `config.yaml`;
--  All your folds are initialized from fixed default seed, so different experiments will use exactly the same train/validation splits     
+-  All your folds are initialized from fixed default seed, so different experiments will use exactly the same train/validation splits
+
+Also, datasets can be specified directly in your config file in more generic way, see examples ds_1, ds_2, ds_3 in "segmentation_training_pipeline/examples/people" folder. In this case you can just call cfg.fit() without providing dataset programmatically.
 
 #### Image and Mask Augmentations
 
