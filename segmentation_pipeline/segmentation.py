@@ -200,9 +200,12 @@ class DrawResults(keras.callbacks.Callback):
 class SegmentationStage(generic.Stage):
 
     def add_visualization_callbacks(self, cb, ec, kf):
-        cb.append(DrawResults(self.cfg, kf, ec.fold, ec.stage, negatives=self.negatives, drawingFunction=ec.drawingFunction))
+        drawingFunction = ec.drawingFunction
+        if drawingFunction == None:
+            drawingFunction = datasets.draw_test_batch
+        cb.append(DrawResults(self.cfg, kf, ec.fold, ec.stage, negatives=self.negatives, drawingFunction=drawingFunction))
         if self.cfg.showDataExamples:
-            cb.append(DrawResults(self.cfg, kf, ec.fold, ec.stage, negatives=self.negatives, train=True, drawingFunction=ec.drawingFunction))
+            cb.append(DrawResults(self.cfg, kf, ec.fold, ec.stage, negatives=self.negatives, train=True, drawingFunction=drawingFunction))
 
     def unfreeze(self, model):
         set_trainable(model)
