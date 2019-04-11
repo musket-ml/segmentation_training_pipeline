@@ -123,6 +123,9 @@ class PipelineConfig(generic.GenericImageTaskConfig):
             return model
         return clazz(**cleaned)
 
+    def generateReports(self, foldsToExecute=None, subsample=1.0):
+        pass
+
     def evaluateAll(self,ds, fold:int,stage=-1,negatives="real",ttflips=None):
         folds = self.kfold(ds, range(0, len(ds)))
         vl, vg, test_g = folds.generator(fold, False,negatives=negatives,returnBatch=True)
