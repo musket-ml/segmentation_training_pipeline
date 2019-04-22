@@ -8,6 +8,7 @@ from musket_core import configloader, datasets
 import os
 import musket_core.losses
 import imageio
+import inspect
 keras.utils.get_custom_objects()["dice"]= musket_core.losses.dice
 keras.utils.get_custom_objects()["iou"]= musket_core.losses.iou_coef
 keras.utils.get_custom_objects()["iot"]= musket_core.losses.iot_coef
@@ -88,21 +89,22 @@ class PipelineConfig(generic.GenericImageTaskConfig):
                 pbar.update(batchSize)
 
     def createNet(self):
-        ac = self.all["activation"];
+        ac = self.all["activation"]
         if ac == "none":
             ac = None
 
-        self.all["activation"]=ac;
+        self.all["activation"]=ac
         if self.architecture in custom_models:
             clazz=custom_models[self.architecture]
         else: clazz = getattr(segmentation_models, self.architecture)
         t: configloader.Type = configloader.loaded['segmentation'].catalog['PipelineConfig']
         r = t.custom()
         cleaned = {}
+        sig=inspect.signature(clazz)
         for arg in self.all:
-            pynama = t.alias(arg);
-            if not arg in r:
-                cleaned[pynama] = self.all[arg];
+            pynama = t.alias(arg)
+            if not arg in r and pynama in sig.parameters:
+                cleaned[pynama] = self.all[arg]
         if self.crops is not None:
             cleaned["input_shape"]=(cleaned["input_shape"][0]//self.crops,cleaned["input_shape"][1]//self.crops,cleaned["input_shape"][2])
 
@@ -121,10 +123,9 @@ class PipelineConfig(generic.GenericImageTaskConfig):
             self.adaptNet(model,model1,self.copyWeights);
             model.save_weights(self.path + ".mdl-nchannel")
             return model
+
         return clazz(**cleaned)
 
-    def generateReports(self, foldsToExecute=None, subsample=1.0):
-        pass
 
     def evaluateAll(self,ds, fold:int,stage=-1,negatives="real",ttflips=None):
         folds = self.kfold(ds, range(0, len(ds)))
@@ -171,6 +172,7 @@ def parse(path) -> PipelineConfig:
 class DrawResults(keras.callbacks.Callback):
 
     def __init__(self,cfg,folds,fold,stage,negatives,limit=16,train=False):
+            super().__init__()
             if train:
                 self.ta = folds.augmentor(isTrain=True)
             else: self.ta = cfg.transformAugmentor()
