@@ -1,0 +1,77 @@
+backbone: mobilenetv2 #let's select classifier backbone for our network
+architecture: DeepLabV3 #let's select segmentation architecture that we would like to use
+augmentation:
+ Fliplr: 0.5 #let's define some minimal augmentations on images
+ Flipud: 0.5
+ Rotate90: true
+classes: 1 #we have just one class (mask or no mask)
+activation: sigmoid #one class means that our last layer should use sigmoid activation
+encoder_weights: pascal_voc #we would like to start from network pretrained on pascal_voc dataset
+shape: [320, 320, 3] #This is our desired input image and mask size, everything will be resized to fit.
+optimizer: Adam #Adam optimizer is a good default choice
+batch: 10 #Our batch size will be 10
+metrics: #We would like to track some metrics
+  - binary_accuracy
+  - iou
+primary_metric: val_binary_accuracy #and the most interesting metric is val_binary_accuracy
+callbacks: #Let's configure some minimal callbacks
+  EarlyStopping:
+    patience: 15
+    monitor: val_iou_coef
+    verbose: 1
+  ReduceLROnPlateau:
+    patience: 4
+    factor: 0.5
+    monitor: val_iou_coef
+    mode: auto
+    cooldown: 5
+    verbose: 1
+loss: binary_crossentropy #We use simple binary_crossentropy loss
+stages:
+  - epochs: 100 #Let's go for 100 epochs
+
+fit_with: simple_1
+
+datasets:
+  simple:
+    input_path: "../../picsart/train" #set of input images, will be treated as set of (height, width, 3) tensors with values: from 0 to 255
+    output_path: "../../picsart/train_mask" #set of examples, will be treated as set of (height, width, 1) tensors with values: 0 or 1
+
+  composite: ["default"]
+
+
+  simple_1: #equivalent of simple, demonstrating how to pick channels from different folders, same paths specified here, but they can be different. also here is demonstrated how to pickup concrete color value(see output)
+
+    inputs:
+      -
+        name: "default"
+        data_type: "uint8"
+        bindings:
+          -
+            reader: "RGBA"
+            path: "../../picsart/train"
+            bind: [0, 1] # 0, 1 channels of image will be writen into 0, 1 channels of input tensor
+            treat:
+              type": "as_is"
+          -
+            reader: "RGBA"
+            path: "../../picsart/train"
+            bind: [2] # 2 channel of image will be writen into 2 channel of input tensor
+            treat:
+              type": "as_is"
+
+
+
+    outputs:
+      -
+        name: "default"
+        data_type: "bool"
+        bindings:
+          -
+            reader: "RGBA"
+            path: "../../picsart/train_mask"
+            bind: [3] #4th channel of thensor will be written in 0th channel of output tensor
+            treat:
+              type: "binary_mask"
+              #for demonstration purpose, image will be treated as (height, width, 5) tensor where value is 1 if color is equal to values described in "colors" and 0 otherwise
+              colors: [[56, 37, 13], [123, 12, 11], [56, 56, 68], [255, 255, 255], [43, 37, 21]]
