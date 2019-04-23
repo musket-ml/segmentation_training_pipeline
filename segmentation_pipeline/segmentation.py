@@ -176,8 +176,6 @@ def parse(path) -> PipelineConfig:
 class DrawResults(keras.callbacks.Callback):
 
 
-    def __init__(self,cfg,folds,fold,stage,negatives,limit=16,train=False):
-            
     def __init__(self,cfg,folds,fold,stage,negatives,limit=16,train=False, drawingFunction = datasets.draw_test_batch):
             super().__init__()
             if train:
