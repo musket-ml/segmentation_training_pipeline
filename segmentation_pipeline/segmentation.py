@@ -7,6 +7,7 @@ import keras
 from musket_core import configloader, datasets
 import os
 import musket_core.losses
+from musket_core.datasets import DataSet, WriteableDataSet, DirectWriteableDS
 import imageio
 import inspect
 keras.utils.get_custom_objects()["dice"]= musket_core.losses.dice
@@ -165,6 +166,19 @@ class PipelineConfig(generic.GenericImageTaskConfig):
                 vl.terminate()
                 vg.terminate()
         pass
+
+    def get_eval_batch(self)->int:
+        return self.inference_batch
+
+    def load_writeable_dataset(self, ds, path)->DataSet:
+        resName = (ds.name if hasattr(ds, "name") else "") + "_predictions"
+        result = DirectWriteableDS(ds, resName, path, len(ds))
+        return result
+
+    def create_writeable_dataset(self, dataset:DataSet, dsPath:str)->WriteableDataSet:
+        resName = (dataset.name if hasattr(dataset, "name") else "") + "_predictions"
+        result = DirectWriteableDS(dataset, resName, dsPath)
+        return result
 
 
 def parse(path) -> PipelineConfig:
