@@ -193,7 +193,7 @@ class DrawResults(keras.callbacks.Callback):
         def iter():
             for z in self.ta.augment_batches([self.rs]):
               res = self.model.predict(np.array(z.images_aug))
-              z.heatmaps_aug = [imgaug.HeatmapsOnImage(x, x.shape) for x in res];
+              z.heatmaps_aug = [imgaug.SegmentationMapOnImage(x, x.shape) for x in res]
               yield z
         num=0
         for i in iter():
