@@ -7,7 +7,7 @@ import keras
 from musket_core import configloader, datasets
 import os
 import musket_core.losses
-from musket_core.datasets import DataSet, WriteableDataSet, DirectWriteableDS
+from musket_core.datasets import DataSet, WriteableDataSet, DirectWriteableDS,CompressibleWriteableDS
 import imageio
 import inspect
 keras.utils.get_custom_objects()["dice"]= musket_core.losses.dice
@@ -172,18 +172,18 @@ class PipelineConfig(generic.GenericImageTaskConfig):
 
     def load_writeable_dataset(self, ds, path)->DataSet:
         resName = (ds.name if hasattr(ds, "name") else "") + "_predictions"
-        result = DirectWriteableDS(ds, resName, path, len(ds))
+        result = CompressibleWriteableDS(ds, resName, path, len(ds))
         return result
 
     def create_writeable_dataset(self, dataset:DataSet, dsPath:str)->WriteableDataSet:
         resName = (dataset.name if hasattr(dataset, "name") else "") + "_predictions"
-        result = DirectWriteableDS(dataset, resName, dsPath)
+        result = CompressibleWriteableDS(dataset, resName, dsPath)
         return result
 
 
 def parse(path) -> PipelineConfig:
     cfg = configloader.parse("segmentation", path)
-    cfg.path = path;
+    cfg.path = path
     return cfg
 
 
@@ -207,7 +207,7 @@ class DrawResults(keras.callbacks.Callback):
         def iter():
             for z in self.ta.augment_batches([self.rs]):
               res = self.model.predict(np.array(z.images_aug))
-              z.heatmaps_aug = [imgaug.SegmentationMapOnImage(x, x.shape) for x in res]
+              z.heatmaps_aug = [imgaug.SegmentationMapOnImage(x>0.5, x.shape) for x in res]
               yield z
         num=0
         for i in iter():
