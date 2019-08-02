@@ -99,7 +99,7 @@ class PipelineConfig(generic.GenericImageTaskConfig):
             clazz=custom_models[self.architecture]
         else: clazz = getattr(segmentation_models, self.architecture)
         t: configloader.Type = configloader.loaded['segmentation'].catalog['PipelineConfig']
-        r = t.custom()
+        r = t.customProperties()
         cleaned = {}
         sig=inspect.signature(clazz)
         for arg in self.all:
