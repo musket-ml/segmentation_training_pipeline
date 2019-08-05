@@ -52,7 +52,6 @@ class PipelineConfig(generic.GenericImageTaskConfig):
         super().__init__(**atrs)
         self.dataset_clazz = datasets.ImageKFoldedDataSet
         self.flipPred=True
-        
         pass
 
     def update(self,z,res):
@@ -100,7 +99,7 @@ class PipelineConfig(generic.GenericImageTaskConfig):
             clazz=custom_models[self.architecture]
         else: clazz = getattr(segmentation_models, self.architecture)
         t: configloader.Type = configloader.loaded['segmentation'].catalog['PipelineConfig']
-        r = t.custom()
+        r = t.customProperties()
         cleaned = {}
         sig=inspect.signature(clazz)
         for arg in self.all:
@@ -114,7 +113,7 @@ class PipelineConfig(generic.GenericImageTaskConfig):
         if self.crops is not None:
             cleaned["input_shape"]=(cleaned["input_shape"][0]//self.crops,cleaned["input_shape"][1]//self.crops,cleaned["input_shape"][2])
 
-        if "input_shape" in cleaned and cleaned["input_shape"][2]>3 and self.encoder_weights!=None and len(self.encoder_weights)>0:
+        if cleaned["input_shape"][2]>3 and self.encoder_weights!=None and len(self.encoder_weights)>0:
             if os.path.exists(self.path + ".mdl-nchannel"):
                 cleaned["encoder_weights"] = None
                 model = clazz(**cleaned)
