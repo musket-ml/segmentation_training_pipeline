@@ -52,6 +52,7 @@ class PipelineConfig(generic.GenericImageTaskConfig):
         super().__init__(**atrs)
         self.dataset_clazz = datasets.ImageKFoldedDataSet
         self.flipPred=True
+        
         pass
 
     def update(self,z,res):
@@ -113,7 +114,7 @@ class PipelineConfig(generic.GenericImageTaskConfig):
         if self.crops is not None:
             cleaned["input_shape"]=(cleaned["input_shape"][0]//self.crops,cleaned["input_shape"][1]//self.crops,cleaned["input_shape"][2])
 
-        if cleaned["input_shape"][2]>3 and self.encoder_weights!=None and len(self.encoder_weights)>0:
+        if "input_shape" in cleaned and cleaned["input_shape"][2]>3 and self.encoder_weights!=None and len(self.encoder_weights)>0:
             if os.path.exists(self.path + ".mdl-nchannel"):
                 cleaned["encoder_weights"] = None
                 model = clazz(**cleaned)
@@ -172,12 +173,12 @@ class PipelineConfig(generic.GenericImageTaskConfig):
 
     def load_writeable_dataset(self, ds, path)->DataSet:
         resName = (ds.name if hasattr(ds, "name") else "") + "_predictions"
-        result = CompressibleWriteableDS(ds, resName, path, len(ds))
+        result = CompressibleWriteableDS(ds, resName, path, len(ds),asUints=self.compressPredictionsAsInts)
         return result
 
     def create_writeable_dataset(self, dataset:DataSet, dsPath:str)->WriteableDataSet:
         resName = (dataset.name if hasattr(dataset, "name") else "") + "_predictions"
-        result = CompressibleWriteableDS(dataset, resName, dsPath)
+        result = CompressibleWriteableDS(dataset, resName, dsPath,asUints=self.compressPredictionsAsInts)
         return result
 
 
