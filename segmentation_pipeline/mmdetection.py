@@ -641,8 +641,8 @@ class MusketImageInfo(MusketInfo):
 
     def initializer(self, pi: PredictionItem):
         img = pi.x[0]
-        self.width = img.shape[0]
-        self.height = img.shape[1]
+        self.width = img.shape[1]
+        self.height = img.shape[0]
 
 class MusketAnnotationInfo(MusketInfo):
 
@@ -1053,7 +1053,7 @@ class DrawSamplesHook(Hook):
                     if len(pm) > 0:
                         predMasksDecoded = [mask_util.decode(x) for x in pm]
                         for x in predMasksDecoded:
-                            predMasksArr[:,:,i] += np.rot90(x.astype(np.float32))
+                            predMasksArr[:,:,i] += x.astype(np.float32)
                         maskIndices.add(i)
 
                 maskIndices = np.array(sorted(list(maskIndices)),dtype=np.int)
