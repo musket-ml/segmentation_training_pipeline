@@ -321,14 +321,29 @@ class PipelineConfig(generic.GenericImageTaskConfig):
     def  __init__(self,**atrs):
         self.configPath = None
         self.weightsPath = None
+        self.nativeConfig = None
         super().__init__(**atrs)
         self.dataset_clazz = datasets.ImageKFoldedDataSet
         self.flipPred=True
-        self.nativeConfig = Config.fromfile(self.configPath)
+
+    def initNativeConfig(self):
+
+
+        atrs = self.all
+        self.nativeConfig = Config.fromfile(self.getNativeConfigPath())
         cfg = self.nativeConfig
 
-        cfg.resume_from = self.weightsPath
-        cfg.model.pretrained = self.weightsPath
+        wd = os.path.dirname(self.path)
+        cfg.work_dir = wd
+
+        if 'bbox_head' in cfg.model and hasattr(atrs,'classes'):
+            setCfgAttr(cfg.model.bbox_head, 'num_classes', atrs['classes'])
+
+        if 'mask_head' in cfg.model and hasattr(atrs,'classes'):
+            setCfgAttr(cfg.model.mask_head, 'num_classes', atrs['classes'])
+
+        cfg.resume_from = self.getWeightsPath()
+        cfg.model.pretrained = self.getWeightsPath()
         cfg.total_epochs = 15  # need to have more epoch then the checkpoint has been generated for
         cfg.data.imgs_per_gpu = 1  # batch size
         cfg.data.workers_per_gpu = 1
@@ -339,15 +354,28 @@ class PipelineConfig(generic.GenericImageTaskConfig):
         #     torch.backends.cudnn.benchmark = True
         # # update configs according to CLI args
         #
-        args_work_dir = 'C:/workspaces/irnaterialist'
-        if args_work_dir is not None:
-            cfg.work_dir = args_work_dir
-        #
         # if args_resume_from is not None:
         #     cfg.resume_from = args_resume_from
         #
 
         cfg.gpus = 1
+
+    def __setattr__(self, key, value):
+        super().__setattr__(key,value)
+        if key == 'path' and value is not None:
+            self.initNativeConfig()
+
+    def getWeightsPath(self):
+        wd = os.path.dirname(self.path)
+        joined = os.path.join(wd, self.weightsPath)
+        result = os.path.normpath(joined)
+        return result
+
+    def getNativeConfigPath(self):
+        wd = os.path.dirname(self.path)
+        joined = os.path.join(wd, self.configPath)
+        result = os.path.normpath(joined)
+        return result
 
     def update(self,z,res):
         z.segmentation_maps_aug = [imgaug.SegmentationMapOnImage(x, x.shape) for x in res];
@@ -423,7 +451,7 @@ class PipelineConfig(generic.GenericImageTaskConfig):
         #     self.adaptNet(model,model1,self.copyWeights);
         #     model.save_weights(self.path + ".mdl-nchannel")
         #     return model
-        result = MMDetWrapper(self.nativeConfig, self.weightsPath)
+        result = MMDetWrapper(self.nativeConfig, self.getWeightsPath())
 
         return result
 
@@ -480,7 +508,7 @@ class PipelineConfig(generic.GenericImageTaskConfig):
         if self.testTimeAugmentation is not None:
             ttflips=self.testTimeAugmentation
 
-        model = init_detector(self.configPath, self.weightsPath, device='cuda:0')
+        model = init_detector(self.getNativeConfigPath(), self.getWeightsPath(), device='cuda:0')
 
         for pi in dataset:
             img = pi.x[0]
@@ -1156,3 +1184,10 @@ def imdraw_det_bboxes(img,
                     cv2.FONT_HERSHEY_COMPLEX, font_scale, text_color)
 
     return img
+
+def setCfgAttr(obj, attrName, value):
+    if isinstance(obj, list):
+        for x in obj:
+            setCfgAttr(x,attrName,value)
+    else:
+        setattr(obj,attrName,value)
