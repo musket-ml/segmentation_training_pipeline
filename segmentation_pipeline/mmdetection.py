@@ -371,6 +371,12 @@ class PipelineConfig(generic.GenericImageTaskConfig):
         result = os.path.normpath(joined)
         return result
 
+    def getWeightsOutPath(self):
+        wd = os.path.dirname(self.path)
+        joined = os.path.join(wd, 'weights')
+        result = os.path.normpath(joined)
+        return result
+
     def getNativeConfigPath(self):
         wd = os.path.dirname(self.path)
         joined = os.path.join(wd, self.configPath)
@@ -513,7 +519,7 @@ class PipelineConfig(generic.GenericImageTaskConfig):
         for pi in dataset:
             img = pi.x[0]
             result = inference_detector(model, img)
-            show_result(img, result, model.CLASSES)
+            #show_result(img, result, model.CLASSES)
             print("!!!")
 
 
@@ -584,7 +590,7 @@ class DetectionStage(generic.Stage):
                 mmdet_version=__version__,
                 config=cfg.text,
                 CLASSES=train_dataset.CLASSES)
-            cfg.checkpoint_config.out_dir = "weights_dir"
+            cfg.checkpoint_config.out_dir = self.cfg.getWeightsOutPath()
         logger = get_root_logger(cfg.log_level)
         model.model.CLASSES = train_dataset.CLASSES
 
