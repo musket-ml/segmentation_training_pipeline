@@ -332,6 +332,7 @@ class PipelineConfig(generic.GenericImageTaskConfig):
         atrs = self.all
         self.nativeConfig = Config.fromfile(self.getNativeConfigPath())
         cfg = self.nativeConfig
+        cfg.gpus = 1
 
         wd = os.path.dirname(self.path)
         cfg.work_dir = wd
@@ -345,7 +346,7 @@ class PipelineConfig(generic.GenericImageTaskConfig):
         cfg.resume_from = self.getWeightsPath()
         cfg.model.pretrained = self.getWeightsPath()
         cfg.total_epochs = 15  # need to have more epoch then the checkpoint has been generated for
-        cfg.data.imgs_per_gpu = 1  # batch size
+        cfg.data.imgs_per_gpu = max(1, self.batch // cfg.gpus)# batch size
         cfg.data.workers_per_gpu = 1
         cfg.log_config.interval = 1
 
@@ -357,8 +358,6 @@ class PipelineConfig(generic.GenericImageTaskConfig):
         # if args_resume_from is not None:
         #     cfg.resume_from = args_resume_from
         #
-
-        cfg.gpus = 1
 
     def __setattr__(self, key, value):
         super().__setattr__(key,value)
@@ -547,6 +546,7 @@ class DetectionStage(generic.Stage):
         set_trainable(model)
 
     def _doTrain(self, kf, model, ec, cb, kepoch):
+        torch.cuda.set_device(0)
         negatives = self.negatives
         fold = ec.fold
         numEpochs = self.epochs
@@ -562,7 +562,7 @@ class DetectionStage(generic.Stage):
         train_indexes = kf.sampledIndexes(fold, True, negatives)
         test_indexes = kf.sampledIndexes(fold, False, validation_negatives)
 
-        train_indexes = train_indexes[:1]
+        train_indexes = train_indexes[:30]
         test_indexes = test_indexes[:10]
 
         trainDS = SubDataSet(kf.ds,train_indexes)
@@ -601,6 +601,7 @@ class DetectionStage(generic.Stage):
                 train_dataset,
                 cfg.data.imgs_per_gpu,
                 cfg.data.workers_per_gpu,
+                num_gpus=cfg.gpus,
                 dist=distributed)
         ]
 
@@ -613,7 +614,7 @@ class DetectionStage(generic.Stage):
             logger=logger)
 
         dsh = DrawSamplesHook(val_dataset, list(range(min(len(test_indexes),10))), os.path.join(os.path.dirname(self.cfg.path),"examples"))
-        runner.register_hook(dsh)
+        runner.register_hook(HookWrapper(dsh, toSingleGPUModeBefore, toSingleGPUModeAfter))
         runner.run(data_loaders, cfg.workflow, cfg.total_epochs)
 
 class MusketPredictionItemWrapper(object):
@@ -966,6 +967,14 @@ def _dist_train_runner(model, dataset, cfg, validate=False)->Runner:
     return runner
 
 
+def toSingleGPUModeBefore(runner):
+    result = {'device_ids': runner.model.device_ids}
+    runner.model.device_ids = [torch.cuda.current_device()]
+    return result
+
+def toSingleGPUModeAfter(runner, beforeRes):
+    runner.model.device_ids = beforeRes['device_ids']
+
 def _non_dist_train_runner(model, dataset, cfg, validate=False)->Runner:
 
     # put model on gpus
@@ -986,6 +995,9 @@ def _non_dist_train_runner(model, dataset, cfg, validate=False)->Runner:
     runner.register_training_hooks(cfg.lr_config, optimizer_config,
                                    cfg.checkpoint_config, cfg.log_config)
 
+    before = toSingleGPUModeBefore
+    after = toSingleGPUModeAfter
+
     # register eval hooks
     if validate:
         val_dataset_cfg = cfg.data.val
@@ -993,15 +1005,15 @@ def _non_dist_train_runner(model, dataset, cfg, validate=False)->Runner:
         if isinstance(model.module, RPN):
             # TODO: implement recall hooks for other datasets
             runner.register_hook(
-                CocoDistEvalRecallHook(val_dataset_cfg, **eval_cfg))
+                HookWrapper(CocoDistEvalRecallHook(val_dataset_cfg, **eval_cfg),before,after))
         else:
             dataset_type = getattr(mmdetDatasets, val_dataset_cfg.type)
             if issubclass(dataset_type, mmdetDatasets.CocoDataset):
                 runner.register_hook(
-                    CocoDistEvalmAPHook(val_dataset_cfg, **eval_cfg))
+                    HookWrapper(CocoDistEvalmAPHook(val_dataset_cfg, **eval_cfg),before,after))
             else:
                 runner.register_hook(
-                    DistEvalmAPHook(val_dataset_cfg, **eval_cfg))
+                    HookWrapper(DistEvalmAPHook(val_dataset_cfg, **eval_cfg),before,after))
 
     if cfg.resume_from:
         runner.resume(cfg.resume_from)
@@ -1197,3 +1209,105 @@ def setCfgAttr(obj, attrName, value):
             setCfgAttr(x,attrName,value)
     else:
         setattr(obj,attrName,value)
+
+
+class HookWrapper(Hook):
+
+    def __init__(self, hook:Hook, before, after):
+        self.hook = hook
+        self.before = before
+        self.after = after
+
+    def before_run(self, runner):
+        beforeRes = self.before(runner)
+        self.hook.before_run(runner)
+        self.after(runner, beforeRes)
+
+    def after_run(self, runner):
+        beforeRes = self.before(runner)
+        self.hook.after_run(runner)
+        self.after(runner, beforeRes)
+
+    def before_epoch(self, runner):
+        beforeRes = self.before(runner)
+        self.hook.before_epoch(runner)
+        self.after(runner, beforeRes)
+
+    def after_epoch(self, runner):
+        beforeRes = self.before(runner)
+        self.hook.after_epoch(runner)
+        self.after(runner, beforeRes)
+
+    def before_iter(self, runner):
+        beforeRes = self.before(runner)
+        self.hook.before_iter(runner)
+        self.after(runner, beforeRes)
+
+    def after_iter(self, runner):
+        beforeRes = self.before(runner)
+        self.hook.after_iter(runner)
+        self.after(runner, beforeRes)
+
+    def before_train_epoch(self, runner):
+        beforeRes = self.before(runner)
+        self.hook.before_train_epoch(runner)
+        self.after(runner, beforeRes)
+
+    def before_val_epoch(self, runner):
+        beforeRes = self.before(runner)
+        self.hook.before_val_epoch(runner)
+        self.after(runner, beforeRes)
+
+    def after_train_epoch(self, runner):
+        beforeRes = self.before(runner)
+        self.hook.after_train_epoch(runner)
+        self.after(runner, beforeRes)
+
+    def after_val_epoch(self, runner):
+        beforeRes = self.before(runner)
+        self.hook.after_val_epoch(runner)
+        self.after(runner, beforeRes)
+
+    def before_train_iter(self, runner):
+        beforeRes = self.before(runner)
+        self.hook.before_train_iter(runner)
+        self.after(runner, beforeRes)
+
+    def before_val_iter(self, runner):
+        beforeRes = self.before(runner)
+        self.hook.before_val_iter(runner)
+        self.after(runner, beforeRes)
+
+    def after_train_iter(self, runner):
+        beforeRes = self.before(runner)
+        self.hook.after_train_iter(runner)
+        self.after(runner, beforeRes)
+
+    def after_val_iter(self, runner):
+        beforeRes = self.before(runner)
+        self.hook.after_val_iter(runner)
+        self.after(runner, beforeRes)
+
+    def every_n_epochs(self, runner, n):
+        beforeRes = self.before(runner)
+        result = self.hook.every_n_epochs(runner,n)
+        self.after(runner, beforeRes)
+        return result
+
+    def every_n_inner_iters(self, runner, n):
+        beforeRes = self.before(runner)
+        result = self.hook.every_n_inner_iters(runner,n)
+        self.after(runner, beforeRes)
+        return result
+
+    def every_n_iters(self, runner, n):
+        beforeRes = self.before(runner)
+        result = self.hook.every_n_iters(runner,n)
+        self.after(runner, beforeRes)
+        return result
+
+    def end_of_epoch(self, runner):
+        beforeRes = self.before(runner)
+        result = self.hook.end_of_epoch(runner)
+        self.after(runner, beforeRes)
+        return result
