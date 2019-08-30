@@ -386,37 +386,6 @@ class PipelineConfig(generic.GenericImageTaskConfig):
         z.segmentation_maps_aug = [imgaug.SegmentationMapOnImage(x, x.shape) for x in res];
         pass
 
-    def predict_to_directory(self, spath, tpath,fold=0, stage=0, limit=-1, batchSize=32,binaryArray=False,ttflips=False):
-        generic.ensure(tpath)
-        with tqdm.tqdm(total=len(generic.dir_list(spath)), unit="files", desc="segmentation of images from " + str(spath) + " to " + str(tpath)) as pbar:
-            for v in self.predict_on_directory(spath, fold=fold, stage=stage, limit=limit, batch_size=batchSize, ttflips=ttflips):
-                b:imgaug.Batch=v;
-                for i in range(len(b.data)):
-                    id=b.data[i];
-                    orig=b.images[i];
-                    map=b.segmentation_maps_aug[i]
-                    scaledMap=imgaug.augmenters.Scale({"height": orig.shape[0], "width": orig.shape[1]}).augment_segmentation_maps([map])
-                    if isinstance(tpath, datasets.ConstrainedDirectory):
-                        tp=tpath.path
-                    else:
-                        tp=tpath
-                    if binaryArray:
-                        np.save(os.path.join(tp, id[0:id.index('.')]),scaledMap[0].arr);
-                    else: imageio.imwrite(os.path.join(tp, id[0:id.index('.')] + ".png"), (scaledMap[0].arr*255).astype(np.uint8))
-                pbar.update(batchSize)
-
-    def predict_in_directory(self, spath, fold, stage,cb, data,limit=-1, batchSize=32,ttflips=False):
-        with tqdm.tqdm(total=len(generic.dir_list(spath)), unit="files", desc="segmentation of images from " + str(spath)) as pbar:
-            for v in self.predict_on_directory(spath, fold=fold, stage=stage, limit=limit, batch_size=batchSize, ttflips=ttflips):
-                b:imgaug.Batch=v;
-                for i in range(len(b.data)):
-                    id=b.data[i];
-                    orig=b.images[i];
-                    map=b.segmentation_maps_aug[i]
-                    scaledMap=imgaug.augmenters.Scale({"height": orig.shape[0], "width": orig.shape[1]}).augment_segmentation_maps([map])
-                    cb(id,scaledMap[0],data)
-                pbar.update(batchSize)
-
     def createNet(self):
         # ac = self.all["activation"]
         # if ac == "none":
@@ -509,17 +478,86 @@ class PipelineConfig(generic.GenericImageTaskConfig):
         result = CompressibleWriteableDS(dataset, resName, dsPath)
         return result
 
-    def predict_on_dataset(self, dataset, fold=0, stage=0, limit=-1, batch_size=None, ttflips=False, cacheModel=False):
-        if self.testTimeAugmentation is not None:
-            ttflips=self.testTimeAugmentation
+    def predict_to_directory(self, spath, tpath,fold=0, stage=0, limit=-1, batchSize=32,binaryArray=False,ttflips=False):
+        generic.ensure(tpath)
+        with tqdm.tqdm(total=len(generic.dir_list(spath)), unit="files", desc="segmentation of images from " + str(spath) + " to " + str(tpath)) as pbar:
+            for v in self.predict_on_directory(spath, fold=fold, stage=stage, limit=limit, batch_size=batchSize, ttflips=ttflips):
+                b:imgaug.Batch=v;
+                for i in range(len(b.data)):
+                    id=b.data[i];
+                    orig=b.images[i];
+                    map=b.segmentation_maps_aug[i]
+                    scaledMap=imgaug.augmenters.Scale({"height": orig.shape[0], "width": orig.shape[1]}).augment_segmentation_maps([map])
+                    if isinstance(tpath, datasets.ConstrainedDirectory):
+                        tp=tpath.path
+                    else:
+                        tp=tpath
+                    if binaryArray:
+                        np.save(os.path.join(tp, id[0:id.index('.')]),scaledMap[0].arr);
+                    else: imageio.imwrite(os.path.join(tp, id[0:id.index('.')] + ".png"), (scaledMap[0].arr*255).astype(np.uint8))
+                pbar.update(batchSize)
 
-        model = init_detector(self.getNativeConfigPath(), self.getWeightsPath(), device='cuda:0')
+    def predict_in_directory(self, spath, fold, stage,cb, data,limit=-1, batchSize=32,ttflips=False):
+        with tqdm.tqdm(total=len(generic.dir_list(spath)), unit="files", desc="segmentation of images from " + str(spath)) as pbar:
+            for v in self.predict_on_directory(spath, fold=fold, stage=stage, limit=limit, batch_size=batchSize, ttflips=ttflips):
+                b:imgaug.Batch=v;
+                for i in range(len(b.data)):
+                    id=b.data[i];
+                    orig=b.images[i];
+                    map=b.segmentation_maps_aug[i]
+                    scaledMap=imgaug.augmenters.Scale({"height": orig.shape[0], "width": orig.shape[1]}).augment_segmentation_maps([map])
+                    cb(id,scaledMap[0],data)
+                pbar.update(batchSize)
 
-        for pi in dataset:
-            img = pi.x[0]
-            result = inference_detector(model, img)
-            #show_result(img, result, model.CLASSES)
-            print("!!!")
+    # def predict_on_dataset(self, dataset, fold=0, stage=0, limit=-1, batch_size=None, ttflips=False, cacheModel=False):
+    #     if self.testTimeAugmentation is not None:
+    #         ttflips = self.testTimeAugmentation
+    #     if batch_size is None:
+    #         batch_size = self.inference_batch
+    #
+    #     if cacheModel:
+    #         if self.mdl is None:
+    #             self.mdl = self.load_model(fold, stage)
+    #         mdl = self.mdl
+    #     else:
+    #         mdl = self.load_model(fold, stage)
+    #
+    #     if self.crops is not None:
+    #         mdl = BatchCrop(self.crops, mdl)
+    #     ta = self.transformAugmentor()
+    #     for original_batch in datasets.batch_generator(dataset, batch_size, limit):
+    #         for batch in ta.augment_batches([original_batch]):
+    #             res = self.predict_on_batch(mdl, ttflips, batch)
+    #             resList = [x for x in res]
+    #             for ind in range(len(resList)):
+    #                 img = resList[ind]
+    #                 # FIXME
+    #                 unaug = original_batch.images[ind]
+    #                 if not self.manualResize and self.flipPred:
+    #                     restored = imgaug.imresize_single_image(img, (unaug.shape[0], unaug.shape[1]), cv2.INTER_AREA)
+    #                 else:
+    #                     restored = img
+    #                 resList[ind] = restored
+    #             self.update(batch, resList)
+    #             batch.results = resList
+    #             yield batch
+
+    def predict_on_batch(self, mdl, ttflips, batch):
+        o1 = np.array(batch.images_aug)
+        res = mdl.predict(o1)
+        if ttflips == "Horizontal":
+            another = imgaug.augmenters.Fliplr(1.0).augment_images(batch.images_aug)
+            res1 = mdl.predict(np.array(another))
+            if self.flipPred:
+                res1 = imgaug.augmenters.Fliplr(1.0).augment_images(res1)
+            res = (res + res1) / 2.0
+        elif ttflips:
+            res = self.predict_with_all_augs(mdl, ttflips, batch)
+        return res
+
+    def update(self,z,res):
+        z.segmentation_maps_aug = [imgaug.SegmentationMapOnImage(x, x.shape) for x in res];
+        pass
 
 
 
@@ -562,7 +600,7 @@ class DetectionStage(generic.Stage):
         train_indexes = kf.sampledIndexes(fold, True, negatives)
         test_indexes = kf.sampledIndexes(fold, False, validation_negatives)
 
-        train_indexes = train_indexes[:30]
+        train_indexes = train_indexes[:0]
         test_indexes = test_indexes[:10]
 
         trainDS = SubDataSet(kf.ds,train_indexes)
