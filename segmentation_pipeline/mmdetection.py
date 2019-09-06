@@ -1,9 +1,12 @@
+from collections import OrderedDict
+import types
 import mmcv
 import cv2
 from mmcv.image import imread, imwrite
 from mmcv.visualization.color import color_val
 from mmcv import Config
 from mmcv.runner import Runner, DistSamplerSeedHook, Hook
+from mmcv.runner.hooks.checkpoint import CheckpointHook
 from mmcv.parallel import scatter, collate, MMDataParallel, MMDistributedDataParallel
 
 from mmdet import datasets as mmdetDatasets
@@ -22,12 +25,13 @@ import tqdm
 from segmentation_models.utils import set_trainable
 import keras
 from musket_core import configloader, datasets
+from musket_core.utils import save
 import os
 import os.path as osp
 import musket_core.losses
-from musket_core.datasets import SubDataSet, PredictionItem
-from musket_core.datasets import DataSet, WriteableDataSet, DirectWriteableDS,CompressibleWriteableDS
+from musket_core.datasets import SubDataSet, PredictionItem, DataSet, WriteableDataSet, DirectWriteableDS,CompressibleWriteableDS
 import imageio
+from coco import maskUtils
 
 
 
@@ -39,6 +43,7 @@ from mmdet.models import build_detector
 from mmdet.datasets.custom import CustomDataset
 from mmdet.datasets.utils import to_tensor, random_scale
 from mmdet.datasets.coco import CocoDataset
+from mmcv.runner import load_checkpoint
 import torch
 import torch.distributed
 
@@ -53,6 +58,7 @@ class MMDetWrapper:
         self.cfg = cfg
         self.weightsPath = weightsPath
         self.output_dim = 4
+        self.stop_training = False
 
     def __call__(self, *args, **kwargs):
         return OutputMeta(self.output_dim, self)
@@ -149,25 +155,52 @@ class MMDetWrapper:
         return result_x.astype(np.float32), result_y.astype(np.int32)
 
     def predict(self, *args, **kwargs):
-        input = np.array(args)[0]
 
-        input = np.reshape(input, (len(input), -1))
+        self.model.cfg = self.cfg
+        self.model.to(torch.cuda.current_device())
+        checkpoint = load_checkpoint(self.model, self.weightsPath)
+        self.model.CLASSES = CocoDataset.CLASSES
 
-        self.model._n_features = input.shape[1]
+        input = args[0]
 
+        #input = np.reshape(input, (len(input), -1))
+
+        #self.model._n_features = input.shape[1]
+
+        self.model.eval()
         predictions = inference_detector(self.model, input)
         # predictions = self.model.predict(input)
         #
         # if self.output_dim in [1, 2]:
         #     return self.groups_to_vectors(predictions, len(predictions))
+        if isinstance(predictions,types.GeneratorType):
+            predictions = [ x for x in predictions ]
+
+        if self.model.with_mask:
+            decoded = []
+            for p in predictions:
+                bboxes = p[0]
+                mmdetMasks = p[1]
+                decodedMasks = []
+                for clazzMasks in mmdetMasks:
+                    decodedClazzmasks = []
+                    if len(clazzMasks) != 0:
+                        for m in clazzMasks:
+                            decodedMask = maskUtils.decode(m)
+                            decodedClazzmasks.append(decodedMask)
+                    decodedMasks.append(np.array(decodedClazzmasks))
+                decoded.append({
+                    'bboxes': bboxes,
+                    'masks': decodedMasks
+                })
+            predictions = decoded
 
         return predictions
 
-    def load_weights(self, path, val):
+    def load_weights(self, path, val = None):
         # if os.path.exists(path):
         #     self.model._Booster = lightgbm.Booster(model_file=path)
-        print("Load weights")
-        pass
+        self.cfg.resume_from = path
 
     def numbers_to_vectors(self, numbers):
         result = np.zeros((len(numbers), self.output_dim))
@@ -324,7 +357,7 @@ class PipelineConfig(generic.GenericImageTaskConfig):
         self.nativeConfig = None
         super().__init__(**atrs)
         self.dataset_clazz = datasets.ImageKFoldedDataSet
-        self.flipPred=True
+        self.flipPred=False
 
     def initNativeConfig(self):
 
@@ -343,9 +376,9 @@ class PipelineConfig(generic.GenericImageTaskConfig):
         if 'mask_head' in cfg.model and hasattr(atrs,'classes'):
             setCfgAttr(cfg.model.mask_head, 'num_classes', atrs['classes'])
 
-        cfg.resume_from = self.getWeightsPath()
+        cfg.load_from = self.getWeightsPath()
         cfg.model.pretrained = self.getWeightsPath()
-        cfg.total_epochs = 15  # need to have more epoch then the checkpoint has been generated for
+        cfg.total_epochs = None  # need to have more epoch then the checkpoint has been generated for
         cfg.data.imgs_per_gpu = max(1, self.batch // cfg.gpus)# batch size
         cfg.data.workers_per_gpu = 1
         cfg.log_config.interval = 1
@@ -475,7 +508,7 @@ class PipelineConfig(generic.GenericImageTaskConfig):
 
     def create_writeable_dataset(self, dataset:DataSet, dsPath:str)->WriteableDataSet:
         resName = (dataset.name if hasattr(dataset, "name") else "") + "_predictions"
-        result = CompressibleWriteableDS(dataset, resName, dsPath)
+        result = MMdetWritableDS(dataset, resName, dsPath, self.withMask())
         return result
 
     def predict_to_directory(self, spath, tpath,fold=0, stage=0, limit=-1, batchSize=32,binaryArray=False,ttflips=False):
@@ -485,17 +518,24 @@ class PipelineConfig(generic.GenericImageTaskConfig):
                 b:imgaug.Batch=v;
                 for i in range(len(b.data)):
                     id=b.data[i];
-                    orig=b.images[i];
-                    map=b.segmentation_maps_aug[i]
-                    scaledMap=imgaug.augmenters.Scale({"height": orig.shape[0], "width": orig.shape[1]}).augment_segmentation_maps([map])
+                    entry = self.toEntry(b, i)
                     if isinstance(tpath, datasets.ConstrainedDirectory):
                         tp=tpath.path
                     else:
                         tp=tpath
-                    if binaryArray:
-                        np.save(os.path.join(tp, id[0:id.index('.')]),scaledMap[0].arr);
-                    else: imageio.imwrite(os.path.join(tp, id[0:id.index('.')] + ".png"), (scaledMap[0].arr*255).astype(np.uint8))
+                    p = os.path.join(tp, id[0:id.index('.')] + ".npy")
+                    save(p,entry)
+
                 pbar.update(batchSize)
+
+    def toEntry(self, b, i):
+        bboxes = b.bounding_boxes_unaug[i]
+        if self.withMask():
+            masks = b.segmentation_maps_unaug[i]
+            entry = (bboxes, masks)
+        else:
+            entry = bboxes
+        return entry
 
     def predict_in_directory(self, spath, fold, stage,cb, data,limit=-1, batchSize=32,ttflips=False):
         with tqdm.tqdm(total=len(generic.dir_list(spath)), unit="files", desc="segmentation of images from " + str(spath)) as pbar:
@@ -503,10 +543,8 @@ class PipelineConfig(generic.GenericImageTaskConfig):
                 b:imgaug.Batch=v;
                 for i in range(len(b.data)):
                     id=b.data[i];
-                    orig=b.images[i];
-                    map=b.segmentation_maps_aug[i]
-                    scaledMap=imgaug.augmenters.Scale({"height": orig.shape[0], "width": orig.shape[1]}).augment_segmentation_maps([map])
-                    cb(id,scaledMap[0],data)
+                    entry = self.toEntry(b, i)
+                    cb(id,entry,data)
                 pbar.update(batchSize)
 
     # def predict_on_dataset(self, dataset, fold=0, stage=0, limit=-1, batch_size=None, ttflips=False, cacheModel=False):
@@ -543,10 +581,10 @@ class PipelineConfig(generic.GenericImageTaskConfig):
     #             yield batch
 
     def predict_on_batch(self, mdl, ttflips, batch):
-        o1 = np.array(batch.images_aug)
-        res = mdl.predict(o1)
+        #o1 = np.array(batch.images_unaug)
+        res = mdl.predict(batch.images_unaug)
         if ttflips == "Horizontal":
-            another = imgaug.augmenters.Fliplr(1.0).augment_images(batch.images_aug)
+            another = imgaug.augmenters.Fliplr(1.0).augment_images(batch.images_unaug)
             res1 = mdl.predict(np.array(another))
             if self.flipPred:
                 res1 = imgaug.augmenters.Fliplr(1.0).augment_images(res1)
@@ -555,12 +593,29 @@ class PipelineConfig(generic.GenericImageTaskConfig):
             res = self.predict_with_all_augs(mdl, ttflips, batch)
         return res
 
+    def withMask(self)->bool:
+        if 'data' in self.nativeConfig:
+            data = self.nativeConfig.data
+            if 'train' in data:
+                return data.train.with_mask
+            if 'val' in data:
+                return data.val.with_mask
+            if 'test' in data:
+                return data.test.with_mask
+        return False
+
     def update(self,z,res):
-        z.segmentation_maps_aug = [imgaug.SegmentationMapOnImage(x, x.shape) for x in res];
-        pass
-
-
-
+        if self.withMask():
+            bboxes = []
+            masks = []
+            for x in res:
+                bboxes.append(x['bboxes'])
+                masks.append(x['masks'])
+        else:
+            bboxes = res
+            masks = None
+        z.bounding_boxes_unaug = bboxes
+        z.segmentation_maps_unaug = masks
 
 #
 #
@@ -568,6 +623,59 @@ class PipelineConfig(generic.GenericImageTaskConfig):
 #     cfg = configloader.parse("segmentation", path)
 #     cfg.path = path
 #     return cfg
+
+class MMdetWritableDS(CompressibleWriteableDS):
+
+    def __init__(self,orig,name,dsPath, withMasks, count = 0,asUints=True,scale=255):
+        super().__init__(orig,name,dsPath, count,False,scale)
+        self.withMasks = withMasks
+
+
+    def saveItem(self, path:str, item):
+        dire = os.path.dirname(path)
+        if self.withMasks:
+            bboxes = item['bboxes']
+            masks = item['masks']
+            if self.asUints:
+                if self.scale <= 255:
+                    masks = (masks * self.scale).astype(np.uint8)
+                else:
+                    masks = (masks * self.scale).astype(np.uint16)
+            if not os.path.exists(dire):
+                os.mkdir(dire)
+
+            payload = np.array([bboxes,masks],dtype=np.object)
+            np.savez_compressed(path, payload)
+        else:
+            if self.asUints:
+                if self.scale<=255:
+                    item=(item*self.scale).astype(np.uint8)
+                else:
+                    item=(item*self.scale).astype(np.uint16)
+            if not os.path.exists(dire):
+                os.mkdir(dire)
+            np.savez_compressed(path, item)
+
+    def loadItem(self, path:str):
+        if self.withMasks:
+            payload = np.load(path)["arr_0.npy"]
+            bboxes = payload[0]
+            masks = payload[1]
+            if self.asUints:
+                masks=masks.astype(np.float32)/self.scale
+
+            result = {
+                'bboxes': bboxes,
+                'masks': masks
+            }
+            return result
+
+        else:
+            if self.asUints:
+                x=np.load(path)["arr_0.npy"].astype(np.float32)/self.scale
+            else:
+                x=np.load(path)["arr_0.npy"]
+        return x;
 
 class DetectionStage(generic.Stage):
 
@@ -594,14 +702,22 @@ class DetectionStage(generic.Stage):
         verbose = self.cfg.verbose
         initial_epoch = kepoch
 
+        for item in callbacks:
+            if "CSVLogger" in str(item):
+                item.set_model(model)
+                item.on_train_begin()
+
+                if "ModelCheckpoint" in str(item):
+                    checkpoint_cb = item
+
         if validation_negatives == None:
             validation_negatives = negatives
 
         train_indexes = kf.sampledIndexes(fold, True, negatives)
         test_indexes = kf.sampledIndexes(fold, False, validation_negatives)
 
-        train_indexes = train_indexes[:0]
-        test_indexes = test_indexes[:10]
+        train_indexes = train_indexes
+        test_indexes = test_indexes
 
         trainDS = SubDataSet(kf.ds,train_indexes)
         valDS = SubDataSet(kf.ds, test_indexes)
@@ -629,6 +745,7 @@ class DetectionStage(generic.Stage):
                 config=cfg.text,
                 CLASSES=train_dataset.CLASSES)
             cfg.checkpoint_config.out_dir = self.cfg.getWeightsOutPath()
+            cfg.checkpoint_config.filename_tmpl = f"best-{ec.fold}.{ec.stage}.weights"
         logger = get_root_logger(cfg.log_level)
         model.model.CLASSES = train_dataset.CLASSES
 
@@ -651,9 +768,34 @@ class DetectionStage(generic.Stage):
             validate=True,  # args_validate,
             logger=logger)
 
+        runner._epoch = initial_epoch
+
+        cpHooks = list(filter(lambda x: 'CheckpointHook' in str(x), runner.hooks))
+        if len(cpHooks) == 0:
+            raise ValueError("Checkpoint Hook is expected")
+
+        cpHook = cpHooks[0]
+        cpHookIndex = runner.hooks.index(cpHook)
+        cpHook1 = CustomCheckpointHook(cpHook)
+        runner.hooks[cpHookIndex] = cpHook1
+
+        if self.cfg.resume:
+            allBest = self.cfg.info('loss')
+            filtered = list(filter(lambda x: x.stage == ec.stage and x.fold == ec.fold, allBest))
+            if len(filtered) > 0:
+                prevInfo = filtered[0]
+                self.lr = prevInfo.lr
+                cpHook1.setBest(prevInfo.best)
+
+
         dsh = DrawSamplesHook(val_dataset, list(range(min(len(test_indexes),10))), os.path.join(os.path.dirname(self.cfg.path),"examples"))
         runner.register_hook(HookWrapper(dsh, toSingleGPUModeBefore, toSingleGPUModeAfter))
-        runner.run(data_loaders, cfg.workflow, cfg.total_epochs)
+        for callback in callbacks:
+            if "CSVLogger" in str(callback):
+                runner.register_hook(KerasCBWrapper(callback))
+
+        model.model.train()
+        runner.run(data_loaders, cfg.workflow, numEpochs)
 
 class MusketPredictionItemWrapper(object):
 
@@ -698,7 +840,7 @@ class MusketImageInfo(MusketInfo):
 
     def image(self)->np.ndarray:
         pi = self.getPredictionItem()
-        img = pi.x[0]
+        img = pi.x
         return img
 
     def __getitem__(self, key):
@@ -713,7 +855,7 @@ class MusketImageInfo(MusketInfo):
         return None
 
     def initializer(self, pi: PredictionItem):
-        img = pi.x[0]
+        img = pi.x
         self.width = img.shape[1]
         self.height = img.shape[0]
 
@@ -725,7 +867,7 @@ class MusketAnnotationInfo(MusketInfo):
         self.bboxes = y[1]
         self.bboxes_ignore = np.zeros(shape=(0,4),dtype=np.float32)
         self.labels_ignore = np.zeros((0),dtype=np.int64)
-        self.masks = y[2]
+        self.masks = y[2] if len(y)>2 else None
 
     def __getitem__(self, key):
         if key == "bboxes":
@@ -1100,7 +1242,7 @@ class DrawSamplesHook(Hook):
 
         classNames = self.dataset.CLASSES
         for r in results:
-            imgOrig = r[1].x[0]
+            imgOrig = r[1].x
             scale = self.exampleWidth / imgOrig.shape[1]
             newY = self.exampleWidth
             newX = int(imgOrig.shape[0] * scale)
@@ -1349,3 +1491,77 @@ class HookWrapper(Hook):
         result = self.hook.end_of_epoch(runner)
         self.after(runner, beforeRes)
         return result
+
+
+class KerasCBWrapper(Hook):
+
+    def __init__(self, cb:keras.callbacks.Callback):
+        self.cb = cb
+
+    def before_run(self, runner):
+        self.cb.on_train_begin()
+
+    def after_run(self, runner):
+        self.cb.on_train_end()
+
+    def before_epoch(self, runner):
+        self.cb.on_epoch_begin(runner.epoch, None)
+
+    def after_epoch(self, runner):
+        self.cb.on_epoch_end(runner.epoch, None)
+
+    def before_train_epoch(self, runner):
+        self.cb.on_epoch_begin(runner.epoch, None)
+
+    def before_val_epoch(self, runner):
+        self.cb.on_epoch_begin(runner.epoch, None)
+
+    def after_train_epoch(self, runner):
+        logs = log(runner)
+        self.cb.on_epoch_end(runner.epoch, logs)
+
+    def after_val_epoch(self, runner):
+        self.cb.on_epoch_end(runner.epoch, None)
+
+    def end_of_epoch(self, runner):
+        self.cb.on_epoch_end(runner.epoch, None)
+
+
+def log(runner):
+    log_dict = OrderedDict()
+    # training mode if the output contains the key "time"
+    log_dict['epoch'] = runner.epoch
+    mode = 'train' if 'time' in runner.log_buffer.output else 'val'
+    log_dict['mode'] = mode
+    log_dict['iter'] = runner.inner_iter + 1
+    # only record lr of the first param group
+    log_dict['lr'] = runner.current_lr()[0]
+    if mode == 'train':
+        log_dict['time'] = runner.log_buffer.output['time']
+        log_dict['data_time'] = runner.log_buffer.output['data_time']
+    for name, val in runner.log_buffer.output.items():
+        if name in ['time', 'data_time']:
+            continue
+        log_dict[name] = val
+    log_dict['loss'] = get_loss(runner)
+    return log_dict
+
+
+def get_loss(runner):
+    return 0.0 + runner.outputs['loss'].data.cpu().numpy()
+
+
+class CustomCheckpointHook(Hook):
+
+    def __init__(self, delegate: CheckpointHook):
+        self.delegate = delegate
+        self.best = 100.0
+
+    def setBest(self, value):
+        self.best = value
+
+    def after_train_epoch(self, runner):
+        loss = get_loss(runner)
+        if loss < self.best:
+            self.best = loss
+            self.delegate.after_train_epoch(runner)
