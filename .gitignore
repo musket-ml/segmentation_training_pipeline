@@ -108,4 +108,8 @@ venv.bak/
 .settings/
 .project
 .pydevproject
+**/.idea/
+**/.settings/
+**/.project
+**/.pydevproject
 *.iml
