@@ -4,6 +4,7 @@ import numpy as np
 import tqdm
 from segmentation_models.utils import set_trainable
 import keras
+from segmentation_models import backbones
 from musket_core import configloader, datasets
 import os
 import musket_core.losses
@@ -172,12 +173,16 @@ class PipelineConfig(generic.GenericImageTaskConfig):
 
     def load_writeable_dataset(self, ds, path)->DataSet:
         resName = (ds.name if hasattr(ds, "name") else "") + "_predictions"
-        result = CompressibleWriteableDS(ds, resName, path, len(ds),asUints=self.compressPredictionsAsInts)
+        if self.compressScale is not None:
+            result = CompressibleWriteableDS(ds, resName, path, len(ds),asUints=self.compressPredictionsAsInts,scale=self.compressScale)
+        else: result = CompressibleWriteableDS(ds, resName, path, len(ds),asUints=self.compressPredictionsAsInts)
         return result
 
     def create_writeable_dataset(self, dataset:DataSet, dsPath:str)->WriteableDataSet:
         resName = (dataset.name if hasattr(dataset, "name") else "") + "_predictions"
-        result = CompressibleWriteableDS(dataset, resName, dsPath,asUints=self.compressPredictionsAsInts)
+        if self.compressScale is not None:
+            result = CompressibleWriteableDS(dataset, resName, dsPath,asUints=self.compressPredictionsAsInts,scale=self.compressScale)
+        else: result = CompressibleWriteableDS(dataset, resName, dsPath,asUints=self.compressPredictionsAsInts)
         return result
 
 
