@@ -26,12 +26,12 @@ from segmentation_models.utils import set_trainable
 import keras
 from musket_core import configloader, datasets
 from musket_core.utils import save
+from musket_core.generic_config import ExecutionConfig, ReporterCallback, KFoldCallback
 import os
 import os.path as osp
 import musket_core.losses
 from musket_core.datasets import SubDataSet, PredictionItem, DataSet, WriteableDataSet, DirectWriteableDS,CompressibleWriteableDS
 import imageio
-from coco import maskUtils
 
 
 
@@ -54,11 +54,12 @@ from mmdet.datasets import get_dataset
 from typing import Callable
 
 class MMDetWrapper:
-    def __init__(self, cfg:Config, weightsPath:str):
+    def __init__(self, cfg:Config, weightsPath:str, classes: [str]):
         self.cfg = cfg
         self.weightsPath = weightsPath
         self.output_dim = 4
         self.stop_training = False
+        self.classes = classes
 
     def __call__(self, *args, **kwargs):
         return OutputMeta(self.output_dim, self)
@@ -66,6 +67,7 @@ class MMDetWrapper:
     def compile(self, *args, **kwargs):
         cfg = self.cfg
         self.model = build_detector(cfg.model, train_cfg=cfg.train_cfg, test_cfg=cfg.test_cfg)#init_detector(self.cfg, self.weightsPath, device='cuda:0')
+        self.model.CLASSES = self.classes
         # custom_loss = args[1]
         #
         # if not custom_loss in ["multiclass", "regression"]:
@@ -154,12 +156,14 @@ class MMDetWrapper:
 
         return result_x.astype(np.float32), result_y.astype(np.int32)
 
+    def setClasses(self, classes:[str]):
+        self.model.CLASSES = classes
+
     def predict(self, *args, **kwargs):
 
         self.model.cfg = self.cfg
         self.model.to(torch.cuda.current_device())
         checkpoint = load_checkpoint(self.model, self.weightsPath)
-        self.model.CLASSES = CocoDataset.CLASSES
 
         input = args[0]
 
@@ -186,7 +190,7 @@ class MMDetWrapper:
                     decodedClazzmasks = []
                     if len(clazzMasks) != 0:
                         for m in clazzMasks:
-                            decodedMask = maskUtils.decode(m)
+                            decodedMask = mask_utils.decode(m)
                             decodedClazzmasks.append(decodedMask)
                     decodedMasks.append(np.array(decodedClazzmasks))
                 decoded.append({
@@ -255,85 +259,6 @@ class MMDetWrapper:
         if hasattr(self.model, "booster_"):
             self.model.booster_.save_model(file_path)
 
-    def fit_generator(self, *args, **kwargs):
-        # callbacks = kwargs["callbacks"]
-        #
-        # file_path = None
-        # early_stopping_rounds = None
-        #
-        # for item in callbacks:
-        #     if hasattr(item, "filepath"):
-        #         file_path = item.filepath
-        #
-        # generator_train = args[0]
-        # generator_test = kwargs["validation_data"]
-        #
-        # generator_test.batchSize = len(generator_test.indexes)
-        #
-        # train_x, train_y = self.convert_data(generator_train)
-        # val_x, val_y = self.convert_data(generator_test)
-        #
-        # self.model.n_estimators = kwargs["epochs"]
-        #
-        # checkpoint_cb = None
-        #
-        # for item in callbacks:
-        #     item.set_model(self)
-        #     item.on_train_begin()
-        #
-        #     if "ModelCheckpoint" in str(item):
-        #         checkpoint_cb = item
-        #
-        # def custom_metric(y_true, y_pred):
-        #     true, pred = self.to_tf(y_true, y_pred)
-        #
-        #     results = self.eval_metrics(true, pred, tf.get_default_session())
-        #
-        #     for item in list(results.keys()):
-        #         results["val_" + item] = results[item]
-        #
-        #     self.rgetter.__dict__ = results
-        #
-        #     return checkpoint_cb.monitor, np.mean(results[checkpoint_cb.monitor]), "great" in str(checkpoint_cb.monitor_op)
-        #
-        # def custom_callback(*args, **kwargs):
-        #     iter = args[0][2]
-        #
-        #     self.model._Booster = args[0][0]
-        #
-        #     for item in callbacks:
-        #         if "ReduceLROnPlateau" in str(item):
-        #             continue
-        #         item.on_epoch_end(iter, self.rgetter)
-        #
-        # if self.custom_loss_callable:
-        #     self.model.objective = self.custom_loss_callable
-        #     self.model._objective = self.custom_loss_callable
-        #
-        # self.model.fit(train_x, train_y, eval_set=[(val_x, val_y)], callbacks = [custom_callback], eval_metric = custom_metric)
-        #
-        # for item in callbacks:
-        #     item.on_train_end()
-
-        train_dataset = get_dataset(self.cfg.data.train)
-        cfg = self.cfg
-        if cfg.checkpoint_config is not None:
-            # save mmdet version, config file content and class names in
-            # checkpoints as meta data
-            cfg.checkpoint_config.meta = dict(
-                mmdet_version=__version__,
-                config=cfg.text,
-                CLASSES=train_dataset.CLASSES)
-        logger = get_root_logger(self.cfg.log_level)
-        self.model.CLASSES = train_dataset.CLASSES
-        train_detector(
-            self.model,
-            train_dataset,
-            self.cfg,
-            distributed=False, #distributed,
-            validate=True, #args_validate,
-            logger=logger)
-
 class PipelineConfig(generic.GenericImageTaskConfig):
 
     def evaluate(self, d, fold, stage, negatives="all", limit=16):
@@ -361,20 +286,19 @@ class PipelineConfig(generic.GenericImageTaskConfig):
 
     def initNativeConfig(self):
 
-
         atrs = self.all
         self.nativeConfig = Config.fromfile(self.getNativeConfigPath())
         cfg = self.nativeConfig
-        cfg.gpus = 1
+        cfg.gpus = self.gpus
 
         wd = os.path.dirname(self.path)
         cfg.work_dir = wd
 
         if 'bbox_head' in cfg.model and hasattr(atrs,'classes'):
-            setCfgAttr(cfg.model.bbox_head, 'num_classes', atrs['classes'])
+            setCfgAttr(cfg.model.bbox_head, 'num_classes', atrs['classes']+1)
 
         if 'mask_head' in cfg.model and hasattr(atrs,'classes'):
-            setCfgAttr(cfg.model.mask_head, 'num_classes', atrs['classes'])
+            setCfgAttr(cfg.model.mask_head, 'num_classes', atrs['classes']+1)
 
         cfg.load_from = self.getWeightsPath()
         cfg.model.pretrained = self.getWeightsPath()
@@ -382,6 +306,11 @@ class PipelineConfig(generic.GenericImageTaskConfig):
         cfg.data.imgs_per_gpu = max(1, self.batch // cfg.gpus)# batch size
         cfg.data.workers_per_gpu = 1
         cfg.log_config.interval = 1
+        modelCfg = cfg['model']
+        if 'bbox_head' in modelCfg:
+            modelCfg['bbox_head']['num_classes'] = self.classes + 1
+        if 'mask_head' in modelCfg:
+            modelCfg['mask_head']['num_classes'] = self.classes + 1
 
         # # set cudnn_benchmark
         # if cfg.get('cudnn_benchmark', False):
@@ -393,8 +322,9 @@ class PipelineConfig(generic.GenericImageTaskConfig):
         #
 
     def __setattr__(self, key, value):
+        hasAttr = hasattr(self,key)
         super().__setattr__(key,value)
-        if key == 'path' and value is not None:
+        if key == 'gpus' and hasAttr:
             self.initNativeConfig()
 
     def getWeightsPath(self):
@@ -458,7 +388,8 @@ class PipelineConfig(generic.GenericImageTaskConfig):
         #     self.adaptNet(model,model1,self.copyWeights);
         #     model.save_weights(self.path + ".mdl-nchannel")
         #     return model
-        result = MMDetWrapper(self.nativeConfig, self.getWeightsPath())
+        classes = self.get_dataset().root().meta()['CLASSES']
+        result = MMDetWrapper(self.nativeConfig, self.getWeightsPath(), classes)
 
         return result
 
@@ -732,9 +663,10 @@ class DetectionStage(generic.Stage):
 
         cfg = model.cfg
         train_dataset = MyDataSet(ds=trainDS, **cfg.data.train)
-        train_dataset.CLASSES = CocoDataset.CLASSES
+        CLASSES = model.classes
+        train_dataset.CLASSES = CLASSES
         val_dataset = MyDataSet(ds=valDS, **cfg.data.val)
-        val_dataset.CLASSES = CocoDataset.CLASSES
+        val_dataset.CLASSES = CLASSES
         val_dataset.test_mode = True
         cfg.data.val = val_dataset
         if cfg.checkpoint_config is not None:
@@ -747,7 +679,7 @@ class DetectionStage(generic.Stage):
             cfg.checkpoint_config.out_dir = self.cfg.getWeightsOutPath()
             cfg.checkpoint_config.filename_tmpl = f"best-{ec.fold}.{ec.stage}.weights"
         logger = get_root_logger(cfg.log_level)
-        model.model.CLASSES = train_dataset.CLASSES
+        model.setClasses(train_dataset.CLASSES)
 
         distributed = False
         # prepare data loaders
@@ -797,6 +729,68 @@ class DetectionStage(generic.Stage):
         model.model.train()
         runner.run(data_loaders, cfg.workflow, numEpochs)
 
+    def execute(self, kf: datasets.DefaultKFoldedDataSet, model: keras.Model, ec: ExecutionConfig,callbacks=None):
+        if 'unfreeze_encoder' in self.dict and self.dict['unfreeze_encoder']:
+            self.unfreeze(model)
+
+        if 'unfreeze_encoder' in self.dict and not self.dict['unfreeze_encoder']:
+            self.freeze(model)
+        if callbacks is None:
+            cb = [] + self.cfg.callbacks
+        else:
+            cb=callbacks
+        if self.cfg._reporter is not None:
+            if self.cfg._reporter.isCanceled():
+                return
+            cb.append(ReporterCallback(self.cfg._reporter))
+            pass
+        prevInfo = None
+        if self.cfg.resume:
+            allBest = self.cfg.info()
+            filtered = list(filter(lambda x: x.stage == ec.stage and x.fold == ec.fold, allBest))
+            if len(filtered) > 0:
+                prevInfo = filtered[0]
+                self.lr = prevInfo.lr
+
+        if self.loss or self.lr:
+            self.cfg.compile(model, self.cfg.createOptimizer(self.lr), self.loss)
+        if self.initial_weights is not None:
+            try:
+                    model.load_weights(self.initial_weights)
+            except:
+                    z=model.layers[-1].name
+                    model.layers[-1].name="tmpName12312"
+                    model.load_weights(self.initial_weights,by_name=True)
+                    model.layers[-1].name=z
+        if 'callbacks' in self.dict:
+            cb = configloader.parse("callbacks", self.dict['callbacks'])
+        if 'extra_callbacks' in self.dict:
+            cb = cb + configloader.parse("callbacks", self.dict['extra_callbacks'])
+        kepoch=-1
+        if "logAll" in self.dict and self.dict["logAll"]:
+            cb=cb+[AllLogger(ec.metricsPath()+"all.csv")]
+        cb.append(KFoldCallback(kf))
+        kepoch = self._addLogger(model, ec, cb, kepoch)
+        md = self.cfg.primary_metric_mode
+
+        if self.cfg.gpus==1:
+
+            mcp = keras.callbacks.ModelCheckpoint(ec.weightsPath(), save_best_only=True,
+                                                         monitor=self.cfg.primary_metric, mode=md, verbose=1)
+            if prevInfo != None:
+                mcp.best = prevInfo.best
+
+            cb.append(mcp)
+
+        self.add_visualization_callbacks(cb, ec, kf)
+        if self.epochs-kepoch==0:
+            return
+        self.loadBestWeightsFromPrevStageIfExists(ec, model)
+        self._doTrain(kf, model, ec, cb, kepoch)
+
+        print('saved')
+        pass
+
 class MusketPredictionItemWrapper(object):
 
     def __init__(self, ind: int, ds: DataSet):
@@ -826,10 +820,20 @@ class MusketInfo(object):
 
     def getPredictionItem(self) -> PredictionItem:
         result = self.predictionItemWrapper.getPredictionItem()
-        self.initialized = True
         return result
 
     def initializer(self, pi:PredictionItem):
+        self._initializer(pi)
+        self.initialized = True
+
+    def _initializer(self, pi: PredictionItem):
+        raise ValueError("Not implemented")
+
+    def dispose(self):
+        self._free()
+        self.initialized = False
+
+    def _free(self):
         raise ValueError("Not implemented")
 
 class MusketImageInfo(MusketInfo):
@@ -837,11 +841,12 @@ class MusketImageInfo(MusketInfo):
     def __init__(self, piw:MusketPredictionItemWrapper):
         super().__init__(piw)
         self.ann = MusketAnnotationInfo(piw)
+        self.img = None
 
     def image(self)->np.ndarray:
         pi = self.getPredictionItem()
-        img = pi.x
-        return img
+        self.img = pi.x
+        return self.img
 
     def __getitem__(self, key):
         if key == "height":
@@ -854,14 +859,18 @@ class MusketImageInfo(MusketInfo):
             return self.ann
         return None
 
-    def initializer(self, pi: PredictionItem):
+    def _initializer(self, pi: PredictionItem):
         img = pi.x
         self.width = img.shape[1]
         self.height = img.shape[0]
 
+    def _free(self):
+        self.img = None
+        self.ann._free()
+
 class MusketAnnotationInfo(MusketInfo):
 
-    def initializer(self, pi: PredictionItem):
+    def _initializer(self, pi: PredictionItem):
         y = pi.y
         self.labels = y[0]
         self.bboxes = y[1]
@@ -886,6 +895,9 @@ class MusketAnnotationInfo(MusketInfo):
             self.checkInit()
             return self.masks
         return None
+
+    def _free(self):
+        self.masks = None
 
 class MyDataSet(CustomDataset):
     
@@ -1012,6 +1024,8 @@ class MyDataSet(CustomDataset):
             data['gt_masks'] = DC(gt_masks, cpu_only=True)
         if self.with_seg:
             data['gt_semantic_seg'] = DC(to_tensor(gt_seg), stack=True)
+
+        img_info.dispose()
         return data
 
     def prepare_test_img(self, idx):
@@ -1198,7 +1212,13 @@ def _non_dist_train_runner(model, dataset, cfg, validate=False)->Runner:
     if cfg.resume_from:
         runner.resume(cfg.resume_from)
     elif cfg.load_from:
+        fc_cls_params = runner.model.module.bbox_head.fc_cls._parameters
+        fc_reg_params = runner.model.module.bbox_head.fc_reg._parameters
+        runner.model.module.bbox_head.fc_cls._parameters = OrderedDict()
+        runner.model.module.bbox_head.fc_reg._parameters = OrderedDict()
         runner.load_checkpoint(cfg.load_from)
+        runner.model.module.bbox_head.fc_cls._parameters = fc_cls_params
+        runner.model.module.bbox_head.fc_reg._parameters = fc_reg_params
     return runner
 
 
@@ -1214,9 +1234,9 @@ class DrawSamplesHook(Hook):
     def after_train_epoch(self, runner:Runner):
 
         runner.model.eval()
-        results = [None for _ in range(len(self.dataset))]
+        results = [None for _ in range(len(self.indices))]
         if runner.rank == 0:
-            prog_bar = mmcv.ProgressBar(len(self.dataset))
+            prog_bar = mmcv.ProgressBar(len(self.indices))
         for idx in self.indices:
             pi = self.dataset.ds[idx]
             data = self.dataset[idx]
