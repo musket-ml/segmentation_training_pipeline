@@ -2,6 +2,7 @@ import imgaug
 import segmentation_models
 import numpy as np
 import tqdm
+import classification_models
 from segmentation_models.utils import set_trainable
 import keras
 from segmentation_models import backbones
@@ -30,7 +31,6 @@ extra_train=generic.extra_train
 custom_models={
     "DeepLabV3":dlm.Deeplabv3
 }
-
 
 class PipelineConfig(generic.GenericImageTaskConfig):
 
@@ -98,9 +98,26 @@ class PipelineConfig(generic.GenericImageTaskConfig):
         self.all["activation"]=ac
         if self.architecture in custom_models:
             clazz=custom_models[self.architecture]
-        else: clazz = getattr(segmentation_models, self.architecture)
+            
+        else: 
+            if self.architecture in configloader.load("layers").catalog:
+                clazz=configloader.load("layers").catalog[self.architecture].func
+            else:    
+                if not self.architecture in dir(segmentation_models):
+                    print("Unknown architecture:"+self.backbone)
+                    print ("Known architectures:",["FPN","Unet","Linknet","PSPNet","DeeplabV3"]);
+                    raise ValueError("Unknown architecture")
+                clazz = getattr(segmentation_models, self.architecture)
+                if not self.backbone.lower() in classification_models.Classifiers.names():
+                    
+                    print("Unknown backbone:"+self.backbone)
+                    print ("Known backbones:",classification_models.Classifiers.names());
+                    raise ValueError("Unknown backbone")
         t: configloader.Type = configloader.loaded['segmentation'].catalog['PipelineConfig']
         r = t.customProperties()
+        
+            
+        self.backbone=self.backbone.lower()
         cleaned = {}
         sig=inspect.signature(clazz)
         for arg in self.all:
@@ -114,21 +131,22 @@ class PipelineConfig(generic.GenericImageTaskConfig):
         if self.crops is not None:
             cleaned["input_shape"]=(cleaned["input_shape"][0]//self.crops,cleaned["input_shape"][1]//self.crops,cleaned["input_shape"][2])
 
-        if cleaned["input_shape"][2]>3 and self.encoder_weights!=None and len(self.encoder_weights)>0:
-            if os.path.exists(self.path + ".mdl-nchannel"):
-                cleaned["encoder_weights"] = None
-                model = clazz(**cleaned)
-                model.load_weights(self.path + ".mdl-nchannel")
-                return  model
-
-            copy=cleaned.copy();
-            copy["input_shape"] = (cleaned["input_shape"][0] , cleaned["input_shape"][1] , 3)
-            model1=clazz(**copy);
-            cleaned["encoder_weights"]=None
-            model=clazz(**cleaned)
-            self.adaptNet(model,model1,self.copyWeights);
-            model.save_weights(self.path + ".mdl-nchannel")
-            return model
+        if "input_shape" in cleaned:
+            if cleaned["input_shape"][2]>3 and self.encoder_weights!=None and len(self.encoder_weights)>0:
+                if os.path.exists(self.path + ".mdl-nchannel"):
+                    cleaned["encoder_weights"] = None
+                    model = clazz(**cleaned)
+                    model.load_weights(self.path + ".mdl-nchannel")
+                    return  model
+    
+                copy=cleaned.copy();
+                copy["input_shape"] = (cleaned["input_shape"][0] , cleaned["input_shape"][1] , 3)
+                model1=clazz(**copy);
+                cleaned["encoder_weights"]=None
+                model=clazz(**cleaned)
+                self.adaptNet(model,model1,self.copyWeights);
+                model.save_weights(self.path + ".mdl-nchannel")
+                return model
 
         return clazz(**cleaned)
 
