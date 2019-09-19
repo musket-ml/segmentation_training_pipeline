@@ -190,7 +190,7 @@ class MMDetWrapper:
                     decodedClazzmasks = []
                     if len(clazzMasks) != 0:
                         for m in clazzMasks:
-                            decodedMask = mask_utils.decode(m)
+                            decodedMask = mask_util.decode(m)
                             decodedClazzmasks.append(decodedMask)
                     decodedMasks.append(np.array(decodedClazzmasks))
                 decoded.append({
@@ -1351,8 +1351,8 @@ class DrawSamplesHook(Hook):
                 gtMasksArr = gtMasksArr[:,:,maskIndices]
                 predMasksArr = np.minimum(predMasksArr, 1.0)[:,:,maskIndices]
 
-                gtMaskImg = imgaug.SegmentationMapOnImage(gtMasksArr, imgOrig.shape).draw_on_image(imgOrig)
-                predMaskImg = imgaug.SegmentationMapOnImage(predMasksArr, imgOrig.shape).draw_on_image(imgOrig)
+                gtMaskImg = imgaug.augmentables.segmaps.SegmentationMapOnImage(gtMasksArr, imgOrig.shape).draw_on_image(imgOrig)
+                predMaskImg = imgaug.augmentables.segmaps.SegmentationMapOnImage(predMasksArr, imgOrig.shape).draw_on_image(imgOrig)
                 #predMaskImg = imgaug.HeatmapsOnImage(predMasksArr,imgOrig.shape).draw_on_image(imgOrig)
                 gtMaskedImages.append(imgaug.imresize_single_image(gtMaskImg, (newX, newY), 'cubic'))
                 predMaskedImages.append(imgaug.imresize_single_image(predMaskImg,(newX, newY), 'cubic'))
