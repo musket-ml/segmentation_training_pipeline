@@ -46,9 +46,11 @@ from keras import backend as K
 from keras.applications import imagenet_utils
 from keras.utils import conv_utils
 from keras.utils.data_utils import get_file
+from keras.utils import get_custom_objects
 
 WEIGHTS_PATH_X = "https://github.com/bonlime/keras-deeplab-v3-plus/releases/download/1.1/deeplabv3_xception_tf_dim_ordering_tf_kernels.h5"
 WEIGHTS_PATH_MOBILE = "https://github.com/bonlime/keras-deeplab-v3-plus/releases/download/1.1/deeplabv3_mobilenetv2_tf_dim_ordering_tf_kernels.h5"
+
 
 
 class BilinearUpsampling(Layer):
@@ -219,6 +221,7 @@ def _xception_block(inputs, depth_list, prefix, skip_connection_type, stride,
 def relu6(x):
     return K.relu(x, max_value=6)
 
+get_custom_objects()["relu6"]=relu6
 
 def _make_divisible(v, divisor, min_value=None):
     if min_value is None:
