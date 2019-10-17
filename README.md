@@ -37,10 +37,7 @@ So I decided to extract repetitive things into framework that will work at least
 
 ## Installation
 
-At this moment library requires the latest version of imgaug which has not been published yet to pip, so installation requires
-execution of following two commands 
 ```
-pip install git+https://github.com/aleju/imgaug
 pip install segmentation_pipeline
 ```
 *Note: this package requires python 3.6*
