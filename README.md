@@ -1,5 +1,7 @@
 # Segmentation Training Pipeline
 
+![Build status](https://travis-ci.com/musket-ml/segmentation_training_pipeline.svg?branch=master)
+
   * [Motivation](#motivation)
   * [Installation](#installation)
   * [Usage guide](#usage-guide)
