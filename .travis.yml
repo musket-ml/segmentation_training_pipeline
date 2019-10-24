@@ -4,9 +4,8 @@ python:
   - "3.7"  
 # command to install dependencies
 install:
-  - pip install -r requires.txt  
-  - pip install .
   - pip install git+https://github.com/musket-ml/musket_core.git
+  - pip install .
   - pip install git+https://github.com/musket-ml/classification_training_pipeline.git
   - pip install git+https://github.com/musket-ml/musket_text.git
   - pip install git+https://github.com/musket-ml/musket_all.git
