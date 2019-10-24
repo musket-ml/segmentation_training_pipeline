@@ -1,0 +1,17 @@
+numpy
+scipy
+Pillow
+cython
+pandas
+matplotlib
+scikit-image
+keras>=2.2.4
+imageio
+opencv-python
+imgaug==0.3.0
+tensorflow==1.15
+h5py
+tqdm
+segmentation_models==0.2.1
+lightgbm
+async_promises
