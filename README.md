@@ -44,6 +44,10 @@ pip install segmentation_pipeline
 ```
 *Note: this package requires python 3.6*
 
+This package is a part of [Musket ML](https://musket-ml.com/) framework,
+ it is recommended to install the whole collection of the framework
+ packages at once using instructions [here](https://musket-ml.github.io/webdocs/generic/#installation).
+
 ## Usage guide
 
 ### Training a model
