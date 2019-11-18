@@ -1,41 +1,25 @@
 # Segmentation Training Pipeline
-
 ![Build status](https://travis-ci.com/musket-ml/segmentation_training_pipeline.svg?branch=master)
 
-  * [Motivation](#motivation)
-  * [Installation](#installation)
-  * [Usage guide](#usage-guide)
-    + [Training a model](#training-a-model)
-      - [Image/Mask Augmentations](#image-and-mask-augmentations)
-      - [Freezing/Unfreezing encoder](#freezing-and-unfreezing-encoder)
-      - [Custom datasets](#custom-datasets)      
-      - [Balancing your data](#balancing-your-data)
-      - [Multistage training](#multistage-training)
-      - [Composite losses](#composite-losses)
-      - [Cyclical learning rates](#cyclical-learning-rates)
-      - [LR Finder](#lr-finder)      
-      - [Background Augmenter](#background-augmenter)
-      - [Training on crops](#training-on-crops)
-    + [Using trained model](#using-trained-model)
-      - [Ensembling predictions and test time augmentation](#ensembling-predictions)
-    + [Custom evaluation code](#custom-evaluation-code)
-    + [Accessing model](#accessing-model)
-  * [Analyzing Experiments Results](#analyzing-experiments-results)
-  * [What is supported?](#what-is-supported-)    
-  * [Custom architectures, callbacks, metrics](#custom-architectures--callbacks--metrics)
-  * [Examples](#examples)
-  * [Faq](#faq)
+This package is a part of [Musket ML](https://musket-ml.com/) framework.
 
+## Reasons to use Segmentation Pipeline
+Segmentation Pipeline was developed with a focus of enabling to make fast and 
+simply-declared experiments, which can be easily stored, 
+reproduced and compared to each other.
 
-## Motivation
+Segmentation Pipeline has a lot of common parts with [Generic pipeline](https://musket-ml.github.io/webdocs/generic/), but it is easier to define an architecture of the network.
+Also there are a number of segmentation-specific features.
 
-Idea for this project came from my first attempts to participate in Kaggle competitions. My programmers heart was painfully damaged by looking on my own code as well as on other people kernels. Code was highly repetitive, suffering from numerous reimplementations of same or almost same things through the kernels, model/experiment configuration was often mixed with models code, in other words - from programmer perspective it all looked horrible. 
+The pipeline provides the following features:
 
-So I decided to extract repetitive things into framework that will work at least for me and will follow these statements: 
- - experiment configurations should be cleanly separated from model definitions;
- - experiment configuration files should be easy to compare and should fully describe experiment that is being performed except for the dataset;
-- common blocks like an architecture, callbacks, storing model metrics, visualizing network predictions, should be written once and be a part of common library
-
+* Allows to describe experiments in a compact and expressive way
+* Provides a way to store and compare experiments in order to methodically find the best deap learning solution
+* Easy to share experiments and their results to work in a team
+* Experiment configurations are separated from model definitions
+* It is easy to configure network architecture
+* Provides great flexibility and extensibility via support of custom substances
+* Common blocks like an architecture, callbacks, model metrics, predictions vizualizers and others should be written once and be a part of a common library
 
 ## Installation
 
@@ -47,6 +31,83 @@ pip install segmentation_pipeline
 This package is a part of [Musket ML](https://musket-ml.com/) framework,
  it is recommended to install the whole collection of the framework
  packages at once using instructions [here](https://musket-ml.github.io/webdocs/generic/#installation).
+
+## Launching
+
+### Launching experiments
+
+`fit.py` script is designed to launch experiment training.
+
+In order to run the experiment or a number of experiments,   
+
+A typical command line may look like this:
+
+`musket fit --project "path/to/project" --name "experiment_name" --num_gpus=1 --gpus_per_net=1 --num_workers=1 --cache "path/to/cache/folder"`
+
+[--project](https://musket-ml.github.io/webdocs/segmentation/reference/#fitpy-project) points to the root of the [project](#project-structure)
+
+[--name](https://musket-ml.github.io/webdocs/segmentation/reference/#fitpy-name) is the name of the project sub-folder containing experiment yaml file.
+
+[--num_gpus](https://musket-ml.github.io/webdocs/segmentation/reference/#fitpy-num_gpus) sets number of GPUs to use during experiment launch.
+
+[--gpus_per_net](https://musket-ml.github.io/webdocs/segmentation/reference/#fitpy-gpus_per_net) is a maximum number of GPUs to use per single experiment.
+
+[--num_workers](https://musket-ml.github.io/webdocs/segmentation/reference/#fitpy-num_workers) sets number of workers to use.
+
+[--cache](https://musket-ml.github.io/webdocs/segmentation/reference/#fitpy-cache) points to a cache folder to store the temporary data.
+
+Other parameters can be found in the [fit script reference](https://musket-ml.github.io/webdocs/segmentation/reference/#fit-script-arguments)
+
+### Launching tasks
+
+`task.py` script is designed to launch experiment training.
+ 
+Tasks must be defined in the project python scope and marked by an 
+annotation like this:
+
+```python
+from musket_core import tasks, model
+@tasks.task
+def measure2(m: model.ConnectedModel):
+    return result
+```
+
+Working directory *must* point to the `musket_core` root folder.
+
+In order to run the experiment or a number of experiments,   
+
+A typical command line may look like this:
+
+`python -m musket_core.task --project "path/to/project" --name "experiment_name" --task "task_name" --num_gpus=1 --gpus_per_net=1 --num_workers=1 --cache "path/to/cache/folder"`
+
+[--project](https://musket-ml.github.io/webdocs/segmentation/reference/#taskpy-project) points to the root of the [project](#project-structure)
+
+[--name](https://musket-ml.github.io/webdocs/segmentation/reference/#taskpy-name) is the name of the project sub-folder containing experiment yaml file.
+
+[--task](https://musket-ml.github.io/webdocs/segmentation/reference/#taskpy-name) is the name of the task function.
+
+[--num_gpus](https://musket-ml.github.io/webdocs/segmentation/reference/#taskpy-num_gpus) sets number of GPUs to use during experiment launch.
+
+[--gpus_per_net](https://musket-ml.github.io/webdocs/segmentation/reference/#taskpy-gpus_per_net) is a maximum number of GPUs to use per single experiment.
+
+[--num_workers](https://musket-ml.github.io/webdocs/segmentation/reference/#taskpy-num_workers) sets number of workers to use.
+
+[--cache](https://musket-ml.github.io/webdocs/segmentation/reference/#taskpy-cache) points to a cache folder to store the temporary data.
+
+Other parameters can be found in the [task script reference](https://musket-ml.github.io/webdocs/segmentation/reference/#task-script-arguments)
+
+### Launching project analysis
+
+`analize.py` script is designed to launch project-scope analysis.
+
+Note that only experiments, which training is already finished will be covered.
+
+`musket analize --inputFolder "path/to/project"`
+
+[--inputFolder](https://musket-ml.github.io/webdocs/segmentation/reference/#analyzepy-inputfolder) points to a folder to search for finished experiments in. Typically, project root.
+
+Other parameters can be found in the [analyze script reference](https://musket-ml.github.io/webdocs/segmentation/reference/#analyze-script-arguments)
+
 
 ## Usage guide
 
@@ -76,6 +137,7 @@ classes: 1 #we have just one class (mask or no mask)
 activation: sigmoid #one class means that our last layer should use sigmoid activation
 encoder_weights: pascal_voc #we would like to start from network pretrained on pascal_voc dataset
 shape: [320, 320, 3] #This is our desired input image and mask size, everything will be resized to fit.
+testSplit: 0.4
 optimizer: Adam #Adam optimizer is a good default choice
 batch: 16 #Our batch size will be 16
 metrics: #We would like to track some metrics
@@ -101,7 +163,10 @@ stages:
 
 So as you see, we have decomposed our task in two parts, *code that actually trains the model* and *experiment configuration*,
 which determines the model and how it should be trained from the set of predefined building blocks.
- 
+
+Moreover, the whole fitting and prediction process can be launched with built-in script, 
+the only really required python code is dataset definition to let the system know, which data to load.
+
 What does this code actually do behind the scenes?
 
 -  it splits your data into 5 folds, and trains one model per fold;
@@ -110,6 +175,74 @@ What does this code actually do behind the scenes?
 -  All your folds are initialized from fixed default seed, so different experiments will use exactly the same train/validation splits
 
 Also, datasets can be specified directly in your config file in more generic way, see examples ds_1, ds_2, ds_3 in "segmentation_training_pipeline/examples/people" folder. In this case you can just call cfg.fit() without providing dataset programmatically.
+
+Lets discover what's going on in more details:
+
+#### General train properties
+
+Lets take our standard example and check the following set of instructions:
+
+```yaml
+testSplit: 0.4
+optimizer: Adam #Adam optimizer is a good default choice
+batch: 16 #Our batch size will be 16
+metrics: #We would like to track some metrics
+  - binary_accuracy 
+  - iou
+primary_metric: val_binary_accuracy #and the most interesting metric is val_binary_accuracy
+loss: binary_crossentropy #We use simple binary_crossentropy loss
+```
+
+[testSplit](https://musket-ml.github.io/webdocs/segmentation/reference/#testsplit) Splits the train set into two parts, using one part for train and leaving the other untouched for a later testing.
+The split is shuffled. 
+
+[optimizer](https://musket-ml.github.io/webdocs/segmentation/reference/#optimizer) sets the optimizer.
+
+[batch](https://musket-ml.github.io/webdocs/segmentation/reference/#batch) sets the training batch size.
+
+[metrics](https://musket-ml.github.io/webdocs/segmentation/reference/#metrics) sets the metrics to track during the training process. Metric calculation results will be printed in the console and to `metrics` folder of the experiment.
+
+[primary_metric](https://musket-ml.github.io/webdocs/segmentation/reference/#primary_metric) Metric to track during the training process. Metric calculation results will be printed in the console and to `metrics` folder of the experiment.
+Besides tracking, this metric will be also used by default for metric-related activity, in example, for decision regarding which epoch results are better.
+
+[loss](https://musket-ml.github.io/webdocs/segmentation/reference/#loss) sets the loss function. if your network has multiple outputs, you also may pass a list of loss functions (one per output) 
+
+Framework supports composing loss as a weighted sum of predefined loss functions. For example, following construction
+```yaml
+loss: binary_crossentropy+0.1*dice_loss
+```
+will result in loss function which is composed from `binary_crossentropy` and `dice_loss` functions.
+
+There are many more properties to check in [Reference of root properties](https://musket-ml.github.io/webdocs/segmentation/reference/#pipeline-root-properties)
+
+#### Defining architecture
+
+Lets take a look at the following part of our example:
+
+```yaml
+backbone: mobilenetv2 #let's select classifier backbone for our network 
+architecture: DeepLabV3 #let's select segmentation architecture that we would like to use
+classes: 1 #we have just one class (mask or no mask)
+activation: sigmoid #one class means that our last layer should use sigmoid activation
+encoder_weights: pascal_voc #we would like to start from network pretrained on pascal_voc dataset
+shape: [320, 320, 3] #This is our desired input image and mask size, everything will be resized to fit.
+```
+
+The following three properties are required to set:
+
+[backbone](https://musket-ml.github.io/webdocs/segmentation/reference/#backbone) This property configures encoder that should be used. Different kinds of `FPN`, `PSP`, `Linkenet`, `UNet` and more are supported.
+
+[architecture](https://musket-ml.github.io/webdocs/segmentation/reference/#architecture) This property configures decoder architecture that should be used. `net`, `Linknet`, `PSP`, `FPN` and more are supported.
+
+[classes](https://musket-ml.github.io/webdocs/segmentation/reference/#classes) sets the number of classes that should be used. 
+
+The following ones are optional, but commonly used:
+
+[activation](https://musket-ml.github.io/webdocs/segmentation/reference/#activation) sets activation function that should be used in last layer.
+
+[shape](https://musket-ml.github.io/webdocs/segmentation/reference/#shape) set the desired shape of the input picture and mask, in the form heigth, width, number of channels. Input will be resized to fit.
+
+[encoder_weights](https://musket-ml.github.io/webdocs/segmentation/reference/#encoder_weights) configures initial weights of the encoder.
 
 #### Image and Mask Augmentations
 
@@ -126,6 +259,23 @@ augmentation:
       y: [-0.2,0.2]
     rotate: [-16, 16] #random rotations on -16,16 degrees
     shear: [-16, 16] #random shears on -16,16 degrees
+```
+[augmentation](https://musket-ml.github.io/webdocs/segmentation/reference/#augmentation) property defines [IMGAUG](https://imgaug.readthedocs.io) transformations sequence.
+Each object is mapped on [IMGAUG](https://imgaug.readthedocs.io) transformer by name, parameters are mapped too.
+
+In this example, `Fliplr` and `Flipud` keys are automatically mapped on [Flip agugmenters](https://imgaug.readthedocs.io/en/latest/source/api_augmenters_flip.html),
+their `0.5` parameter is mapped on the first `p` parameter of the augmenter.
+Named parameters are also mapped, in example `scale` key of `Affine` is mapped on `scale` parameter of [Affine augmenter](https://imgaug.readthedocs.io/en/latest/source/augmenters.html?highlight=affine#affine).
+
+One interesting augementation option when doing background removal task is replacing backgrounds with random 
+images. We support this with `BackgroundReplacer` augmenter:
+
+```yaml
+augmentation:
+  BackgroundReplacer:
+    path: ./bg #path to folder with backgrounds
+    rate: 0.5 #fraction of original backgrounds to preserve
+
 ```
 
 #### Freezing and Unfreezing encoder
@@ -148,13 +298,15 @@ unfreeze_encoder: true
 ```
 to stage settings.
 
+Both [freeze_encoder](https://musket-ml.github.io/webdocs/segmentation/reference/#freeze_encoder) and [unfreeze_encoder](https://musket-ml.github.io/webdocs/segmentation/reference/#unfreeze_encoder)
+can be put into the root section and inside the stage.
 
 *Note: This option is not supported for DeeplabV3 architecture.*
 
 #### Custom datasets
 
 Training data and masks are not necessarily stored in files, so sometimes you need to declare your own dataset class,
-for example, the following code was used in my experiments with [Airbus ship detection challenge](https://www.kaggle.com/c/airbus-ship-detection/overview)
+for example, the following code was used to support [Airbus ship detection challenge](https://www.kaggle.com/c/airbus-ship-detection/overview)
 to decode segmentation masks from rle encoded strings stored in csv file 
 
 ```python
@@ -164,7 +316,7 @@ from segmentation_pipeline.impl import rle
 import imageio
 import pandas as pd
 
-class SegmentationRLE:
+class SegmentationRLE(datasets.DataSet):
 
     def __init__(self,path,imgPath):
         self.data=pd.read_csv(path);
@@ -184,9 +336,51 @@ class SegmentationRLE:
         return PredictionItem(self.ids[item] + str(), imageio.imread(os.path.join(self.imgPath,self.ids[item])),
                               rle.masks_as_image(pixels) > 0.5)
 
-
-    
+def getTrain()->datasets.DataSet:
+    return SegmentationRLE("train.csv","images/")
 ```         
+
+Now, if this python code sits somewhere in python files located in `modules` folder of the project, and that file is referred by [imports](https://musket-ml.github.io/webdocs/segmentation/reference/#imports) instruction, following YAML can refer it:
+```yaml
+dataset:
+  getTrain: []
+```
+
+[dataset](https://musket-ml.github.io/webdocs/segmentation/reference/#dataset) sets the main training dataset.
+
+[datasets](https://musket-ml.github.io/webdocs/segmentation/reference/#datasets) sets up a list of available data sets to be referred by other entities.
+
+#### Multistage training
+
+Sometimes you need to split your training into several stages. You can easily do it by adding several stage entries
+in your experiment configuration file.
+
+[stages](https://musket-ml.github.io/webdocs/segmentation/reference/#stages) instruction allows to set up stages of the train process, where for each stage it is possible to set some specific training options like the number of epochs, learning rate, loss, callbacks, etc.
+Full list of stage properties can be found [here](https://musket-ml.github.io/webdocs/segmentation/reference/#stage-properties).
+
+```yaml
+stages:
+  - epochs: 100 #Let's go for 100 epochs
+  - epochs: 100 #Let's go for 100 epochs
+  - epochs: 100 #Let's go for 100 epochs
+```
+
+```yaml
+stages:
+  - epochs: 6 #Train for 6 epochs
+    negatives: none #do not include negative examples in your training set 
+    validation_negatives: real #validation should contain all negative examples    
+
+  - lr: 0.0001 #let's use different starting learning rate
+    epochs: 6
+    negatives: real
+    validation_negatives: real
+
+  - loss: lovasz_loss #let's override loss function
+    lr: 0.00001
+    epochs: 6
+    initial_weights: ./fpn-resnext2/weights/best-0.1.weights #let's load weights from this file    
+```       
 
 #### Balancing your data
 
@@ -195,29 +389,13 @@ One common case is the situation when part of your images does not contain any o
 be to heavily inbalanced, so you may want to rebalance it. Alternatively you may want to inject some additional
 images that do not contain objects of interest to decrease amount of false positives that will be produced by the framework.
     
-These scenarios are supported by `negatives` and `validation_negatives` settings of training stage configuration,
+These scenarios are supported by [negatives](https://musket-ml.github.io/webdocs/segmentation/reference/#negatives) and 
+[validation_negatives](https://musket-ml.github.io/webdocs/segmentation/reference/#validation_negatives) settings of training stage configuration,
 these settings accept following values:
 
 - none - exclude negative examples from the data
 - real - include all negative examples 
 - integer number(1 or 2 or anything), how many negative examples should be included per one positive example   
-
-if you are using this setting your dataset class must support `isPositive` method which returns true for indexes
-which contain positive examples: 
-
-```python        
-    def isPositive(self, item):
-        pixels=self.ddd.get_group(self.ids[item])["EncodedPixels"]
-        for mask in pixels:
-            if isinstance(mask, str):
-                return True;
-        return False
-```        
-
-#### Multistage training
-
-Sometimes you need to split your training into several stages. You can easily do it by adding several stage entries
-in your experiment configuration file like in the following example:
 
 ```yaml
 stages:
@@ -236,18 +414,19 @@ stages:
     initial_weights: ./fpn-resnext2/weights/best-0.1.weights #let's load weights from this file    
 ```
 
-Stage entries allow you to configure custom learning rate, balance of negative examples, callbacks, loss function
-and even initial weights which should be used on a particular stage.
+if you are using this setting your dataset class must support `isPositive` method which returns true for indexes
+which contain positive examples: 
 
-#### Composite losses
-
-Framework supports composing loss as a weighted sum of predefined loss functions. For example, following construction
-```yaml
-loss: binary_crossentropy+0.1*dice_loss
-```
-will result in loss function which is composed from `binary_crossentropy` and  `dice_loss` functions.
-
-#### Cyclical learning rates
+```python        
+    def isPositive(self, item):
+        pixels=self.ddd.get_group(self.ids[item])["EncodedPixels"]
+        for mask in pixels:
+            if isinstance(mask, str):
+                return True;
+        return False
+```        
+#### Advanced learning rates
+##### Dynamic learning rates
 
 ![Example](https://github.com/bckenstler/CLR/blob/master/images/triangularDiag.png?raw=true)
 
@@ -257,7 +436,7 @@ As told in [Cyclical learning rates for training neural networks](https://arxiv.
 
 We support them by adopting Brad Kenstler [CLR callback](https://github.com/bckenstler/CLR) for Keras.
 
-If you want to use them, just add `CyclicLR` in your experiment configuration file as shown below: 
+If you want to use them, just add [CyclicLR](https://musket-ml.github.io/webdocs/segmentation/reference/#cycliclr) in your experiment configuration file as shown below: 
 
 ```yaml
 callbacks:
@@ -272,7 +451,9 @@ callbacks:
      step_size: 300
 ```
 
-#### LR Finder
+There are also [ReduceLROnPlateau](https://musket-ml.github.io/webdocs/segmentation/reference/#reducelronplateau) and [LRVariator](https://musket-ml.github.io/webdocs/segmentation/reference/#lrvariator) options to modify learning rate on the fly.
+
+##### LR Finder
 
 [Estimating optimal learning rate for your model](https://arxiv.org/abs/1506.01186) is an important thing, we support this by using slightly changed 
 version of [Pavel Surmenok - Keras LR Finder](https://github.com/surmenok/keras_lr_finder)
@@ -291,18 +472,6 @@ will result in this couple of helpful images:
 ![image](https://camo.githubusercontent.com/b41aeaff00fb7b214b5eb2e5c151e7e353a7263e/68747470733a2f2f63646e2d696d616765732d312e6d656469756d2e636f6d2f6d61782f313630302f312a48566a5f344c57656d6a764f57762d63514f397939672e706e67)
 
 ![image](https://camo.githubusercontent.com/834996d32bbd2edf7435c5e105b53a6b447ef083/68747470733a2f2f63646e2d696d616765732d312e6d656469756d2e636f6d2f6d61782f313630302f312a38376d4b715f586f6d59794a4532396c39314b3064772e706e67)
-#### Background Augmenter
-
-One interesting augentation option when doing background removal task is replacing backgrounds with random 
-images. We support this with `BackgroundReplacer` augmenter:
-
-```yaml
-augmentation:
-  BackgroundReplacer:
-    path: ./bg #path to folder with backgrounds
-    rate: 0.5 #fraction of original backgrounds to preserve
-
-```
 
 #### Training on crops
 
@@ -314,7 +483,8 @@ shape: [768, 768, 3]
 crops: 3
 ``` 
 will lead to splitting each image/mask into 9 cells (3 horizontal splits and 3 vertical splits) and training model on these splits.
-Augmentations will be run separately on each cell.
+Augmentations will be run separately on each cell. 
+[crops](https://musket-ml.github.io/webdocs/segmentation/reference/#crops) property sets the number of single dimension cells.
 
 
 During prediction time, your images will be split into these cells, prediction will be executed on each cell, and then results
