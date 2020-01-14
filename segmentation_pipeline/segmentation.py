@@ -91,6 +91,9 @@ class PipelineConfig(generic.GenericImageTaskConfig):
                 pbar.update(batchSize)
 
     def createNet(self):
+         return self.createNet1(False)
+
+    def createNet1(self, forInference):
         ac = self.all["activation"]
         if ac == "none":
             ac = None
@@ -126,7 +129,8 @@ class PipelineConfig(generic.GenericImageTaskConfig):
                 cleaned[pynama] = self.all[arg]
 
         self.clean(cleaned)
-
+        if forInference and 'weights' in cleaned:
+            cleaned["weights"] = None
 
         if self.crops is not None:
             cleaned["input_shape"]=(cleaned["input_shape"][0]//self.crops,cleaned["input_shape"][1]//self.crops,cleaned["input_shape"][2])
