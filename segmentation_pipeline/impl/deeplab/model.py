@@ -41,10 +41,10 @@ from keras.layers import ZeroPadding2D
 from keras.layers import AveragePooling2D
 from keras.engine import Layer
 from keras.engine import InputSpec
-from keras.engine.topology import get_source_inputs
+#from keras.engine.topology import get_source_inputs
 from keras import backend as K
 from keras.applications import imagenet_utils
-from keras.utils import conv_utils
+#from keras.utils import conv_utils
 from keras.utils.data_utils import get_file
 from keras.utils import get_custom_objects
 
