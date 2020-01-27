@@ -3,6 +3,7 @@ import segmentation_models
 import numpy as np
 import tqdm
 import classification_models
+from classification_models.keras import Classifiers
 from segmentation_models.utils import set_trainable
 import keras
 from segmentation_models import backbones
@@ -108,10 +109,10 @@ class PipelineConfig(generic.GenericImageTaskConfig):
                     print ("Known architectures:",["FPN","Unet","Linknet","PSPNet","DeeplabV3"]);
                     raise ValueError("Unknown architecture")
                 clazz = getattr(segmentation_models, self.architecture)
-                if not self.backbone.lower() in classification_models.Classifiers.names():
+                if not self.backbone.lower() in Classifiers.models.keys():
                     
                     print("Unknown backbone:"+self.backbone)
-                    print ("Known backbones:",classification_models.Classifiers.names());
+                    print ("Known backbones:",Classifiers.models.keys());
                     raise ValueError("Unknown backbone")
         t: configloader.Type = configloader.loaded['segmentation'].catalog['PipelineConfig']
         r = t.customProperties()
